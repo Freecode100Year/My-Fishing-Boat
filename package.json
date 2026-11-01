@@ -1,0 +1,23 @@
+{
+  "name": "my-fishing-boat",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "RAT TIDE — a third-person mechanized-sea fishing boat survival game built with Three.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && node scripts/build-bundle.mjs",
+    "build:vite": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "assets": "node scripts/make_glb.mjs"
+  },
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.187.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.7"
+  }
+}

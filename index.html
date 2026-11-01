@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#06151b" />
+    <meta
+      name="description"
+      content="RAT TIDE — 驾驶锈蚀渔船，在机械海兽横行的怒潮中活下去。"
+    />
+    <title>RAT TIDE — 机械怒潮</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306151b'/%3E%3Cpath d='M10 40c8-4 13-2 19 0 7 3 12 3 25-2-3 11-12 16-24 14C19 50 13 46 10 40Z' fill='%2343d6c4'/%3E%3Ccircle cx='43' cy='25' r='5' fill='%23ffc14d'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas" aria-label="RAT TIDE 游戏画面"></canvas>
+      <div id="screen-grade"></div>
+      <div id="damage-flash"></div>
+      <div id="heat-flash"></div>
+      <div id="low-hp-vignette"></div>
+
+      <input id="txt-file-input" type="file" accept=".txt,text/plain,application/json" class="hidden" />
+
+      <div id="hud" class="hidden" aria-live="polite">
+        <div class="topbar">
+          <section class="hull-cluster hud-panel">
+            <div class="hull-heading">
+              <span class="eyebrow hull-title">RUSTBUCKET <i class="hull-sub">/ 渔船状态</i></span>
+              <span id="hull-value" class="numeric">200 / 200</span>
+            </div>
+            <div class="bar bar-hull"><div id="hull-bar" class="bar-fill"></div><i class="bar-shine"></i></div>
+            <div class="chip-row">
+              <span class="stat-chip" title="装甲减伤">装甲 <b id="stat-armor">0%</b></span>
+              <span class="stat-chip" title="武器伤害">伤害 <b id="stat-damage">100%</b></span>
+              <span class="stat-chip" title="暴击概率">暴击 <b id="stat-crit">5%</b></span>
+              <span class="stat-chip" title="引擎动力 / 移动速度">动力 <b id="stat-speed">100%</b></span>
+            </div>
+          </section>
+
+          <section class="level-cluster">
+            <div class="level-orb"><span>LV</span><b id="level-value">1</b></div>
+            <div class="xp-wrap">
+              <div class="xp-meta"><span>渔夫等级</span><span id="xp-value">0 / 100 XP</span></div>
+              <div class="bar bar-xp"><div id="xp-bar" class="bar-fill"></div></div>
+              <div class="xp-subrow">
+                <span id="passive-point-timer" class="passive-timer">技能点 +2/分 · 30s</span>
+                <button id="upgrade-ready" class="upgrade-ready hidden" type="button">强化点可用 <b id="hud-points-badge">1</b> <kbd>U</kbd></button>
+              </div>
+            </div>
+          </section>
+
+          <section class="radar-cluster hud-panel">
+            <div class="radar-head"><span class="eyebrow">声呐</span><span id="threat-value">威胁 0</span></div>
+            <canvas id="radar" width="300" height="300" aria-label="声呐雷达"></canvas>
+            <div class="radar-foot"><span id="compass-value">N 000°</span><span id="kills-value">击杀 0</span></div>
+          </section>
+        </div>
+
+        <div id="tactical-bar" class="tactical-bar hud-panel">
+          <button id="btn-toggle-auto-attack" class="tac-btn active" type="button" title="快捷键 F：自动锁定射程内海兽并开火">
+            <span class="tac-dot"></span>自动攻击 <kbd>F</kbd>
+          </button>
+          <button id="btn-toggle-auto-counter" class="tac-btn active" type="button" title="快捷键 G：受击或遭遇袭击时立即锁定攻击源反击">
+            <span class="tac-dot"></span>自动反击 <kbd>G</kbd>
+          </button>
+          <button id="btn-toggle-mouse-steer" class="tac-btn active" type="button" title="快捷键 M：船体跟随鼠标360°平滑转向">
+            <span class="tac-dot"></span>360°鼠标转向 <kbd>M</kbd>
+          </button>
+          <button id="btn-quick-heal" class="tac-btn" type="button" title="快捷键 H：智能使用背包物资修复船体/止血/加油/饮食">
+            一键整备 <kbd>H</kbd>
+          </button>
+          <button id="btn-hud-save-txt" class="tac-btn" type="button" title="导出进度为 .txt 文本存档">
+            导出TXT
+          </button>
+          <button id="btn-hud-load-txt" class="tac-btn" type="button" title="从 .txt 文本导入进度存档">
+            导入TXT
+          </button>
+        </div>
+
+        <div id="boss-panel" class="boss-panel hidden">
+          <div class="boss-title"><span>深渊机械章鱼</span><b id="boss-value">100%</b></div>
+          <div class="bar bar-boss"><div id="boss-bar" class="bar-fill"></div></div>
+        </div>
+
+        <div id="crosshair" class="crosshair">
+          <span class="ch-dot"></span><i class="ch-line ch-n"></i><i class="ch-line ch-e"></i><i class="ch-line ch-s"></i><i class="ch-line ch-w"></i>
+          <span id="ch-label" class="ch-label">CANNON</span>
+        </div>
+        <div id="target-panel" class="target-panel hidden">
+          <div class="target-head"><span id="target-name">目标</span><span id="target-state">追击</span></div>
+          <div class="bar bar-target"><div id="target-bar" class="bar-fill"></div></div>
+          <span id="target-hp">0 / 0</span>
+        </div>
+
+        <aside class="vitals hud-panel">
+          <span class="eyebrow">生存体征</span>
+          <div class="vital-row">
+            <span class="vital-icon">◒</span>
+            <div class="vital-main"><div class="vital-label"><span>饥饿</span><b id="hunger-value">100</b></div><div class="bar bar-hunger"><div id="hunger-bar" class="bar-fill"></div></div></div>
+          </div>
+          <div class="vital-row">
+            <span class="vital-icon">◈</span>
+            <div class="vital-main"><div class="vital-label"><span>淡水</span><b id="thirst-value">100</b></div><div class="bar bar-thirst"><div id="thirst-bar" class="bar-fill"></div></div></div>
+          </div>
+          <div class="vital-row">
+            <span class="vital-icon">⛽</span>
+            <div class="vital-main"><div class="vital-label"><span>柴油</span><b id="fuel-value">100</b></div><div class="bar bar-fuel"><div id="fuel-bar" class="bar-fill"></div></div></div>
+          </div>
+          <div id="condition-row" class="condition-row">
+            <span id="cond-bleed" class="condition hidden">流血</span>
+            <span id="cond-pain" class="condition hidden">疼痛</span>
+            <span id="cond-regen" class="condition hidden">再生</span>
+          </div>
+        </aside>
+
+        <aside id="heat-panel" class="heat-panel hud-panel">
+          <div class="heat-head"><span class="eyebrow">热力核心</span><b id="heat-state">充能 +3%/s</b></div>
+          <div class="heat-ring-wrap">
+            <div class="heat-ring"><div id="heat-liquid" class="heat-liquid"></div><span id="heat-value">0%</span></div>
+            <div class="heat-copy"><strong>过热觉醒</strong><span>每秒 +3% · 命中加速 · 100% 释放</span><span id="heat-bonus">半径 30m / 5.5s</span></div>
+          </div>
+        </aside>
+
+        <div id="loot-prompt" class="loot-prompt hidden">
+          <kbd>满</kbd><span>船舱已满 · 无法自动拾取</span><b id="loot-name">金属零件</b>
+        </div>
+
+        <div id="toast-rail" class="toast-rail"></div>
+        <div id="kill-feed" class="kill-feed"></div>
+
+        <div id="control-hint" class="control-hint">
+          <span><kbd>W</kbd><kbd>S</kbd> 油门</span>
+          <span><kbd>鼠标</kbd>/<kbd>A</kbd><kbd>D</kbd> 360°转向</span>
+          <span><kbd>F</kbd> 自动攻击</span>
+          <span><kbd>G</kbd> 自动反击</span>
+          <span><kbd>靠近</kbd> 自动拾取</span>
+          <span><kbd>Tab</kbd> 背包</span>
+          <span><kbd>U</kbd> 强化 (+2点/分)</span>
+        </div>
+
+        <div id="ability-banner" class="ability-banner hidden">
+          <span class="eyebrow">CORE OVERLOAD</span>
+          <strong>热力觉醒</strong>
+          <span>30 米内机械海兽瞬间熔毁</span>
+        </div>
+
+        <div class="hud-buttons">
+          <button id="btn-help" class="icon-btn" title="操作说明">?</button>
+          <button id="btn-pause" class="icon-btn" title="暂停 (Esc)">Ⅱ</button>
+        </div>
+      </div>
+
+      <section id="screen-start" class="screen start-screen">
+        <div class="start-noise"></div>
+        <div class="start-frame">
+          <div class="start-kicker"><span class="live-dot"></span> NORTH ATLANTIC / DEAD ZONE 07</div>
+          <h1 class="game-title"><span>RAT</span><span class="title-surge">TIDE</span></h1>
+          <p class="start-subtitle">机械怒潮</p>
+          <p class="start-copy">
+            风暴撕开了旧渔场。海面下，锈蚀的机械开始呼吸。<br />
+            驾驶你的拖网渔船，360°机动巡航、自动索敌反击、掠夺升级，活到下一次涨潮。
+          </p>
+          <div class="start-actions">
+            <button id="btn-new-game" class="btn btn-primary">开始新航程 <span>→</span></button>
+            <button id="btn-continue" class="btn btn-ghost hidden">继续存档</button>
+            <button id="btn-import-txt-start" class="btn btn-ghost">导入 TXT 存档</button>
+            <button id="btn-export-txt-start" class="btn btn-ghost hidden">导出 TXT 存档</button>
+          </div>
+          <div id="save-meta" class="save-meta hidden"></div>
+          <div class="start-features">
+            <div><b>01</b><span>360° 鼠标航行</span><small>全向转向 · 磁吸自动拾取</small></div>
+            <div><b>02</b><span>智能火控系统</span><small>自动攻击 · 受击自动反击</small></div>
+            <div><b>03</b><span>热力核心 +3%/秒</span><small>每分钟 +2 技能点 · 范围秒杀</small></div>
+            <div><b>04</b><span>TXT 文本存档</span><small>一键导出文本 · 随时跨端导入</small></div>
+          </div>
+          <div class="start-controls">
+            <span><kbd>WASD</kbd> + <kbd>鼠标</kbd> 360°转向</span>
+            <span><kbd>F</kbd> 自动攻击</span>
+            <span><kbd>G</kbd> 自动反击</span>
+            <span><kbd>靠近</kbd> 自动拾取</span>
+            <span><kbd>U</kbd> 强化 (含动力)</span>
+          </div>
+        </div>
+        <div class="start-footer">THREE.JS / WEBGL / PROCEDURAL OCEAN / CLOUDFLARE READY v2.0</div>
+      </section>
+
+      <section id="screen-upgrade" class="screen overlay-screen hidden">
+        <div class="overlay-frame upgrade-frame">
+          <span class="eyebrow">DRYDOCK REFIT</span>
+          <h2>强化渔船</h2>
+          <p class="overlay-copy">每级获得 1 个强化点，且每分钟自动增加 2 个强化点。所有强化立即参与战斗与航行计算。</p>
+          <div class="points-line">可用强化点 <b id="points-value">1</b></div>
+          <div id="upgrade-grid" class="upgrade-grid"></div>
+          <div class="overlay-actions">
+            <button id="btn-upgrade-close" class="btn btn-ghost">继续航行</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-inventory" class="screen overlay-screen hidden">
+        <div class="overlay-frame inventory-frame">
+          <div class="overlay-heading">
+            <div><span class="eyebrow">RUSTBUCKET HOLD</span><h2>船舱与补给</h2></div>
+            <button id="btn-inventory-close" class="close-btn" aria-label="关闭">×</button>
+          </div>
+          <div class="inventory-layout">
+            <div class="inventory-main">
+              <div class="inventory-meta"><span id="inventory-count">0 / 24 格</span><span>靠近海上物资自动拾取 · 点击物品或按数字键 1-7 使用</span></div>
+              <div id="inventory-grid" class="inventory-grid"></div>
+              <div class="inventory-empty" id="inventory-empty">船舱空空如也。击毁机械海兽或靠近漂浮残骸即可自动拾取补给。</div>
+            </div>
+            <aside class="ship-stats">
+              <span class="eyebrow">当前属性</span>
+              <div class="stat-line"><span>最大船体</span><b id="inv-maxhp">200</b></div>
+              <div class="stat-line"><span>装甲减伤</span><b id="inv-armor">0%</b></div>
+              <div class="stat-line"><span>武器伤害</span><b id="inv-damage">100%</b></div>
+              <div class="stat-line"><span>攻击频率</span><b id="inv-rate">100%</b></div>
+              <div class="stat-line"><span>暴击概率</span><b id="inv-crit">5%</b></div>
+              <div class="stat-line"><span>动力航速</span><b id="inv-speed">100%</b></div>
+              <div class="stat-line"><span>暴击伤害</span><b>1000%</b></div>
+              <div class="stat-divider"></div>
+              <span class="eyebrow">快捷补给</span>
+              <div class="quick-grid">
+                <span><kbd>1</kbd> 生肉</span>
+                <span><kbd>2</kbd> 淡水</span>
+                <span><kbd>3</kbd> 柴油</span>
+                <span><kbd>4</kbd> 金属维修</span>
+                <span><kbd>5</kbd> 绷带</span>
+                <span><kbd>6</kbd> 止痛药</span>
+                <span><kbd>7</kbd> 再生药剂</span>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-pause" class="screen overlay-screen hidden">
+        <div class="overlay-frame pause-frame">
+          <span class="eyebrow">ANCHOR DROPPED</span>
+          <h2>暂停与存档管理</h2>
+          <div class="pause-grid">
+            <button id="btn-resume" class="menu-btn">继续航行 <span>→</span></button>
+            <button id="btn-save" class="menu-btn">快速保存 (本地)</button>
+            <button id="btn-export-txt" class="menu-btn">导出 TXT 文本存档 <span>↓</span></button>
+            <button id="btn-import-txt" class="menu-btn">导入 TXT 文本存档 <span>↑</span></button>
+            <button id="btn-txt-modal-open" class="menu-btn">查看 / 粘贴 TXT 存档码</button>
+            <button id="btn-pause-inventory" class="menu-btn">打开船舱</button>
+            <button id="btn-pause-upgrade" class="menu-btn">强化渔船</button>
+            <button id="btn-help-menu" class="menu-btn">操作说明</button>
+            <button id="btn-reset" class="menu-btn danger">放弃航程</button>
+          </div>
+          <div class="settings">
+            <label><span>主音量</span><input id="volume-slider" type="range" min="0" max="100" value="65" /><b id="volume-value">65%</b></label>
+            <label><span>画质</span><select id="quality-select"><option value="high">高</option><option value="medium">中</option><option value="low">低</option></select></label>
+            <label><span>镜头灵敏度</span><input id="sensitivity-slider" type="range" min="30" max="160" value="100" /><b id="sensitivity-value">100%</b></label>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-txt-modal" class="screen overlay-screen hidden">
+        <div class="overlay-frame txt-modal-frame">
+          <div class="overlay-heading">
+            <div><span class="eyebrow">TEXT ARCHIVE TERMINAL</span><h2>TXT 文本存档导入 / 导出</h2></div>
+            <button id="btn-txt-modal-close" class="close-btn" aria-label="关闭">×</button>
+          </div>
+          <p class="overlay-copy">可将下方存档内容复制保存为 .txt 文件，或直接粘贴已有 .txt 存档内容并点击「解析并载入存档」。</p>
+          <textarea id="txt-save-textarea" class="txt-save-textarea" rows="10" spellcheck="false" placeholder="在此粘贴 RAT TIDE 的 .txt 存档内容..."></textarea>
+          <div class="overlay-actions">
+            <button id="btn-txt-download-file" class="btn btn-ghost">下载为 .txt 文件</button>
+            <button id="btn-txt-upload-file" class="btn btn-ghost">选择本地 .txt 文件</button>
+            <button id="btn-txt-copy" class="btn btn-ghost">复制存档文本</button>
+            <button id="btn-txt-apply" class="btn btn-primary">解析并载入存档</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-gameover" class="screen overlay-screen hidden">
+        <div class="overlay-frame gameover-frame">
+          <span class="eyebrow danger-text">HULL BREACH / SIGNAL LOST</span>
+          <h2>渔船沉没</h2>
+          <p class="overlay-copy" id="gameover-copy">大海收回了它的铁皮。</p>
+          <div class="run-stats">
+            <div><span>等级</span><b id="go-level">1</b></div>
+            <div><span>击杀</span><b id="go-kills">0</b></div>
+            <div><span>存活</span><b id="go-time">00:00</b></div>
+            <div><span>最高热力</span><b id="go-heat">0%</b></div>
+          </div>
+          <div class="overlay-actions">
+            <button id="btn-gameover-import-txt" class="btn btn-ghost">导入 TXT 存档复活</button>
+            <button id="btn-restart" class="btn btn-primary">重新起航 <span>↻</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-help" class="screen overlay-screen hidden">
+        <div class="overlay-frame help-frame">
+          <div class="overlay-heading"><div><span class="eyebrow">CAPTAIN'S MANUAL</span><h2>操作与生存指南</h2></div><button id="btn-help-close" class="close-btn">×</button></div>
+          <div class="help-grid">
+            <div class="help-card"><b>360° 航行与转向</b><p><kbd>W</kbd> 前进油门，<kbd>S</kbd> 倒车/减速。开启 360° 鼠标转向（<kbd>M</kbd> 键切换）时，渔船会自动向鼠标指向的 360° 方位平滑转向；也可随时按 <kbd>A</kbd><kbd>D</kbd> 手动打舵。右键拖动可 360° 自由环绕观察。</p></div>
+            <div class="help-card"><b>自动攻击与自动反击</b><p>按 <kbd>F</kbd> 切换<b>自动攻击</b>（自动锁定射程内海兽并预判开火）；按 <kbd>G</kbd> 切换<b>自动反击</b>（遭遇海兽攻击时立即缩短装填并锁定袭击者反击）。按住鼠标左键或空格可随时手动接管射击。</p></div>
+            <div class="help-card"><b>热力觉醒 (+3%/秒)</b><p>热力核心每秒自动充能 3%，命中海兽额外加速充能。达到 100% 自动释放范围秒杀，30 米内所有海兽瞬间熔毁！</p></div>
+            <div class="help-card"><b>自动拾取与物资</b><p>渔船靠近海上漂浮战利品或补给箱时将<b>自动磁吸拾取</b>入舱。按 <kbd>H</kbd> 可一键整备（自动维修、止血、止痛、补充淡水/食物/柴油）。</p></div>
+            <div class="help-card"><b>TXT 文本存档系统</b><p>支持将当前进度一键导出为 <code>.txt</code> 文本文件，或随时从本地 <code>.txt</code> 文件及文本粘贴框导入恢复进度，跨浏览器与多端迁移永不丢失。</p></div>
+            <div class="help-card"><b>强化成长 (+2点/分)</b><p>除升级获得强化点外，存活期间<b>每分钟自动增加 2 个技能点</b>（每 30 秒 +1 点）。支持强化：装甲、耐久、攻击、频率、暴击、<b>动力（移动速度）</b>。</p></div>
+          </div>
+          <div class="overlay-actions"><button id="btn-help-resume" class="btn btn-primary">返回</button></div>
+        </div>
+      </section>
+
+      <div id="boot-error" class="boot-error hidden"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
