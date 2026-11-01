@@ -130,6 +130,9 @@ export class UI {
   private lastCombo = 0;
   private salvoWasCooling = false;
   private toastTimers = new Set<number>();
+  private upgradeRepeatTimer: number | null = null;
+  private activeUpgradeKey: UpgradeKey | null = null;
+  private ignoreUpgradeClick = false;
   private abandonConfirmArmed = false;
   private abandonConfirmTimer = 0;
   saveLabel = '';
@@ -161,6 +164,12 @@ export class UI {
     this.bindButtons();
     this.bindSettings();
     this.bindHotkeys();
+    window.addEventListener('pointerup', () => this.stopUpgradeRepeat());
+    window.addEventListener('pointercancel', () => this.stopUpgradeRepeat());
+    window.addEventListener('blur', () => this.stopUpgradeRepeat());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.stopUpgradeRepeat();
+    });
   }
 
   private triggerFilePicker(): void {
@@ -229,10 +238,7 @@ export class UI {
     on('btn-quick-heal', () => this.callbacks.onQuickHeal());
     on('btn-hud-save-txt', () => this.callbacks.onExportTxt());
     on('btn-hud-load-txt', () => this.triggerFilePicker());
-    on('btn-left-skills', () => {
-      this.el<HTMLDetailsElement>('left-skill-menu').open = false;
-      this.callbacks.onOpenUpgrade();
-    });
+    on('btn-left-skills', () => this.callbacks.onOpenUpgrade());
 
     on('btn-pause-inventory', () => this.callbacks.onOpenInventory());
     on('btn-pause-upgrade', () => this.callbacks.onOpenUpgrade());
@@ -242,6 +248,9 @@ export class UI {
     on('btn-restart', () => this.callbacks.onRestart());
     on('btn-inventory-close', () => this.callbacks.onCloseInventory());
     on('btn-upgrade-close', () => this.callbacks.onCloseUpgrade());
+    this.el('screen-upgrade').addEventListener('click', (event) => {
+      if (event.target === event.currentTarget) this.callbacks.onCloseUpgrade();
+    });
     on('btn-reset', () => {
       const resetBtn = document.getElementById('btn-reset');
       if (!this.abandonConfirmArmed) {
@@ -331,6 +340,7 @@ export class UI {
   }
 
   private hideAllOverlays(): void {
+    this.stopUpgradeRepeat();
     ['screen-upgrade', 'screen-inventory', 'screen-pause', 'screen-gameover', 'screen-help', 'screen-txt-modal'].forEach((id) => {
       document.getElementById(id)?.classList.add('hidden');
     });
@@ -393,6 +403,7 @@ export class UI {
   }
 
   hideUpgrade(): void {
+    this.stopUpgradeRepeat();
     this.el('screen-upgrade').classList.add('hidden');
     this.currentOverlay = 'none';
   }
@@ -402,6 +413,9 @@ export class UI {
   }
 
   private renderUpgrades(points: number, upgrades: Record<UpgradeKey, number>, stats: PlayerStats): void {
+    if (this.activeUpgradeKey && (points <= 0 || upgrades[this.activeUpgradeKey] >= PROGRESSION.upgrades[this.activeUpgradeKey].maxLevel)) {
+      this.stopUpgradeRepeat();
+    }
     this.setText('points-value', String(points));
     const grid = this.el('upgrade-grid');
     grid.innerHTML = '';
@@ -421,14 +435,42 @@ export class UI {
         <p>${t(def.description)}</p>
         <div class="upgrade-level"><span>${t(`等级 ${number(level)} / ${def.maxLevel}`)}</span><span>${t(def.format(level))}</span></div>
         <div class="upgrade-next">${t(next)}</div>
-        <span class="upgrade-take">${t(maxed ? '等级已满' : points > 0 ? '消耗 1 强化点' : '需要强化点')}</span>
+        <span class="upgrade-take">${t(maxed ? '等级已满' : points > 0 ? '点击强化 · 按住连续强化' : '需要强化点')}</span>
       `;
-      button.addEventListener('click', () => this.callbacks.onUpgrade(key));
+      button.addEventListener('pointerdown', (event) => {
+        if (event.pointerType !== 'mouse' || event.button !== 0) return;
+        event.stopPropagation();
+        this.stopUpgradeRepeat();
+        this.activeUpgradeKey = key;
+        this.ignoreUpgradeClick = true;
+        this.callbacks.onUpgrade(key);
+        if (this.activeUpgradeKey === key) {
+          this.upgradeRepeatTimer = window.setInterval(() => {
+            this.callbacks.onUpgrade(key);
+          }, 120);
+        }
+      });
+      button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (event.detail > 0 && this.ignoreUpgradeClick) {
+          this.ignoreUpgradeClick = false;
+          return;
+        }
+        this.callbacks.onUpgrade(key);
+      });
       grid.appendChild(button);
     });
     this.el('points-value').parentElement?.classList.toggle('hidden', false);
     const bonus = this.el('heat-bonus');
     if (bonus) bonus.textContent = t(`半径 30m / ${stats.awakeningDuration.toFixed(1)}s`);
+  }
+
+  private stopUpgradeRepeat(): void {
+    if (this.upgradeRepeatTimer !== null) {
+      window.clearInterval(this.upgradeRepeatTimer);
+      this.upgradeRepeatTimer = null;
+    }
+    this.activeUpgradeKey = null;
   }
 
   private renderInventory(inventory: Inventory, stats: PlayerStats): void {

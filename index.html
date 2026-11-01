@@ -79,10 +79,9 @@
           </button>
         </div>
 
-        <details id="left-skill-menu" class="left-skill-menu">
-          <summary>技能菜单 <span>▾</span></summary>
-          <button id="btn-left-skills" type="button">打开技能窗 <kbd>U</kbd></button>
-        </details>
+        <button id="btn-left-skills" class="left-skill-menu" type="button">
+          <span>装备强化</span><kbd>U</kbd>
+        </button>
 
         <div id="boss-panel" class="boss-panel hidden">
           <div class="boss-title"><span>深渊机械章鱼</span><b id="boss-value">100%</b></div>
@@ -218,10 +217,10 @@
       </section>
 
       <section id="screen-upgrade" class="screen overlay-screen hidden">
-        <div class="overlay-frame upgrade-frame">
+        <div class="overlay-frame upgrade-frame" role="dialog" aria-modal="true" aria-labelledby="upgrade-title">
           <span class="eyebrow">DRYDOCK REFIT</span>
-          <h2>强化渔船</h2>
-          <p class="overlay-copy">每级获得 1 个强化点，航行中每秒自动增加 10 点。每项技能最高 1000 级。</p>
+          <h2 id="upgrade-title">装备强化</h2>
+          <p class="overlay-copy">每级获得 1 个强化点，航行中每秒自动增加 10 点。点击强化 1 级，按住鼠标左键可连续强化；点击窗口外或按 Esc 关闭。</p>
           <div class="points-line">可用强化点 <b id="points-value">1</b></div>
           <div id="upgrade-grid" class="upgrade-grid"></div>
           <div class="overlay-actions">

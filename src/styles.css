@@ -2173,48 +2173,43 @@ select {
 
 
 .left-skill-menu {
+  appearance: none;
   position: absolute;
   left: 16px;
   top: 50%;
   z-index: 12;
   width: min(220px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   pointer-events: auto;
   color: var(--foam);
   background: rgba(4, 18, 23, 0.94);
   border: 1px solid var(--panel-edge);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   transform: translateY(-50%);
-}
-
-.left-skill-menu summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 12px 14px;
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: 15px;
-  list-style: none;
-}
-
-.left-skill-menu summary::-webkit-details-marker { display: none; }
-
-.left-skill-menu[open] summary {
-  border-bottom: 1px solid var(--line);
-}
-
-.left-skill-menu button {
-  width: 100%;
-  border: 0;
-  padding: 12px 14px;
-  background: transparent;
-  color: var(--foam);
   text-align: left;
-  font-family: var(--font-ui);
-  font-size: 15px;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 
-.left-skill-menu button:hover { background: rgba(69, 216, 197, 0.12); }
+.left-skill-menu:hover {
+  border-color: rgba(91, 218, 200, 0.5);
+  background: rgba(10, 38, 42, 0.97);
+  transform: translateY(-50%) translateX(2px);
+}
+
+.left-skill-menu:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+
+.left-skill-menu kbd {
+  color: #8ca5a5;
+}
 
 @media (max-width: 700px) {
   .left-skill-menu { left: 8px; width: min(190px, calc(100vw - 16px)); }
