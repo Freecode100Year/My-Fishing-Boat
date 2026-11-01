@@ -177,6 +177,12 @@ export const WAVES = {
   clearHealRatio: 0.15,
 };
 
+export const UPGRADE_MULTIPLIER_CAP = 30;
+const levelsToReachMultiplierCap = (perLevel: number): number =>
+  Math.ceil((UPGRADE_MULTIPLIER_CAP - 1) / perLevel);
+const maxUpgradeBonusPercent = (perLevel: number, level: number): number =>
+  Math.min((UPGRADE_MULTIPLIER_CAP - 1) * 100, Math.round(level * perLevel * 100));
+
 export const PROGRESSION = {
   baseXp: 72,
   xpGrowth: 1.34,
@@ -205,20 +211,20 @@ export const PROGRESSION = {
     damage: {
       name: '攻击',
       glyph: '✦',
-      description: '更换炮管与高爆弹头，提高主炮的基础伤害。',
+      description: '更换炮管与高爆弹头，提高主炮的基础伤害；总倍率最高 3000%。',
       perLevel: 0.12,
-      maxLevel: 1000,
+      maxLevel: levelsToReachMultiplierCap(0.12),
       accent: '#ec8d54',
-      format: (level: number) => `+${Math.round(level * 12)}% 武器伤害`,
+      format: (level: number) => `+${maxUpgradeBonusPercent(0.12, level)}% 武器伤害`,
     },
     frequency: {
       name: '频率',
       glyph: '≋',
-      description: '优化装填机构，缩短主炮射击间隔。',
+      description: '优化装填机构，缩短主炮射击间隔；总倍率最高 3000%。',
       perLevel: 0.08,
-      maxLevel: 1000,
+      maxLevel: levelsToReachMultiplierCap(0.08),
       accent: '#67d4b8',
-      format: (level: number) => `+${Math.round(level * 8)}% 攻击速度`,
+      format: (level: number) => `+${maxUpgradeBonusPercent(0.08, level)}% 攻击速度`,
     },
     crit: {
       name: '暴击',
@@ -232,11 +238,11 @@ export const PROGRESSION = {
     power: {
       name: '动力',
       glyph: '⚡',
-      description: '改装涡轮增压柴油机与推进螺旋桨，提升渔船移动速度、加速与转向灵敏度。',
+      description: '改装涡轮增压柴油机与推进螺旋桨，提升渔船移动速度、加速与转向灵敏度；倍率最高 3000%。',
       perLevel: 0.12,
-      maxLevel: 1000,
+      maxLevel: levelsToReachMultiplierCap(0.12),
       accent: '#4cd6e8',
-      format: (level: number) => `+${Math.round(level * 12)}% 移动速度`,
+      format: (level: number) => `+${maxUpgradeBonusPercent(0.12, level)}% 移动速度`,
     },
   },
 } as const;

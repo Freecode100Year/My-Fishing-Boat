@@ -3,6 +3,7 @@ import {
   ENEMIES,
   EnemyType,
   PROGRESSION,
+  UPGRADE_MULTIPLIER_CAP,
   UpgradeKey,
   SaveData,
 } from '../config/balance';
@@ -67,12 +68,21 @@ export class Progression {
     const u = this.upgrades;
     const critChance = 1 - (1 - PROGRESSION.baseCritChance) * Math.pow(1 - PROGRESSION.upgrades.crit.perLevel, u.crit);
     const armor = 1 - Math.pow(1 - PROGRESSION.upgrades.armor.perLevel, u.armor);
-    const speedMultiplier = 1 + (u.power ?? 0) * PROGRESSION.upgrades.power.perLevel;
+    const speedMultiplier = Math.min(
+      UPGRADE_MULTIPLIER_CAP,
+      1 + (u.power ?? 0) * PROGRESSION.upgrades.power.perLevel,
+    );
     return {
       maxHp: 200 + u.hull * PROGRESSION.upgrades.hull.perLevel,
       armor: Math.min(armor, 1 - Number.EPSILON),
-      damageMultiplier: 1 + u.damage * PROGRESSION.upgrades.damage.perLevel,
-      fireRateMultiplier: 1 + u.frequency * PROGRESSION.upgrades.frequency.perLevel,
+      damageMultiplier: Math.min(
+        UPGRADE_MULTIPLIER_CAP,
+        1 + u.damage * PROGRESSION.upgrades.damage.perLevel,
+      ),
+      fireRateMultiplier: Math.min(
+        UPGRADE_MULTIPLIER_CAP,
+        1 + u.frequency * PROGRESSION.upgrades.frequency.perLevel,
+      ),
       critChance: Math.min(critChance, 1 - Number.EPSILON),
       speedMultiplier,
       awakeningDuration:
