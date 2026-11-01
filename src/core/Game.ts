@@ -35,7 +35,8 @@ interface Settings {
   mouseSteer: boolean;
 }
 
-const SETTINGS_KEY = 'rattide.settings.v1';
+const SETTINGS_KEY = 'rattide.settings.v2';
+const LEGACY_SETTINGS_KEY = 'rattide.settings.v1';
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -76,7 +77,6 @@ export class Game {
   private fuelWarned = false;
   private hungerWarned = false;
   private thirstWarned = false;
-  private pendingUpgradeOpen = false;
   private upgradeReturn: 'playing' | 'pause' = 'playing';
   private inventoryReturn: 'playing' | 'pause' = 'playing';
   private helpReturn: 'playing' | 'pause' = 'playing';
@@ -86,7 +86,7 @@ export class Game {
     sensitivity: 1,
     autoAttack: true,
     autoCounter: true,
-    mouseSteer: true,
+    mouseSteer: false,
   };
   private menuTime = 0;
   private gameOverSink = 0;
@@ -170,11 +170,6 @@ export class Game {
     this.progression.onLevelUp = (level, points) => {
       this.audio.levelUp();
       this.ui.toast(`等级提升至 ${level}，获得强化点（当前可用 ${points} 点）`, 'good');
-      this.pendingUpgradeOpen = true;
-    };
-    this.progression.onPassivePoints = (added, totalPoints) => {
-      this.audio.ui();
-      this.ui.toast(`航行历练：技能点 +${added}（每分钟 +2 · 当前可用 ${totalPoints} 点，按 U 加点）`, 'good');
     };
 
     this.enemies = new EnemyManager(this.scene, this.ocean, this.islands, this.effects, this.boat, {
@@ -308,7 +303,6 @@ export class Game {
     this.fuelWarned = false;
     this.hungerWarned = false;
     this.thirstWarned = false;
-    this.pendingUpgradeOpen = false;
     this.gameOverSink = 0;
     this.started = true;
     this.state = 'playing';
@@ -327,12 +321,12 @@ export class Game {
     this.loot.spawn('diesel', 1, 26, -8);
     this.save(false);
 
-    this.ui.toast('360°鼠标转向 · 自动攻击(F) · 自动反击(G) 已就绪', 'info');
+    this.ui.toast('鼠标瞄准已就绪 · 船头鼠标转向默认关闭（按 M 开启）· 自动攻击(F) · 自动反击(G)', 'info');
     window.setTimeout(() => {
       if (this.state === 'playing') this.ui.toast('靠近海上漂浮物资将自动磁吸拾取入舱', 'info');
     }, 5500);
     window.setTimeout(() => {
-      if (this.state === 'playing') this.ui.toast('热力每秒自动 +3%，技能点每分钟自动 +2', 'good');
+      if (this.state === 'playing') this.ui.toast('热力每秒自动 +3%，技能点每秒自动 +10', 'good');
     }, 11500);
   }
 
@@ -381,7 +375,6 @@ export class Game {
     this.fuelWarned = false;
     this.hungerWarned = false;
     this.thirstWarned = false;
-    this.pendingUpgradeOpen = false;
     this.gameOverSink = 0;
     this.started = true;
     this.state = 'playing';
@@ -571,10 +564,6 @@ export class Game {
 
   private openUpgrade(): void {
     if (!this.started || this.state === 'gameover') return;
-    if (this.progression.points <= 0) {
-      this.ui.toast(`暂无强化点（每分钟自动 +2 点，约 ${Math.ceil(this.progression.passivePointTimeLeft)} 秒后 +1 点）`, 'warn');
-      return;
-    }
     this.upgradeReturn = this.state === 'paused' ? 'pause' : 'playing';
     this.state = 'upgrade';
     this.ui.showUpgrade(this.progression.points, this.progression.upgrades, this.progression.stats);
@@ -892,7 +881,7 @@ export class Game {
     this.damageFeedbackClock = Math.max(0, this.damageFeedbackClock - dt);
     this.lowHealthClock -= dt;
 
-    // Passive skill points (+2 per minute)
+    // Passive skill points accrue once per second while the voyage is active.
     this.progression.tick(dt, true);
 
     this.survival.tick(dt);
@@ -957,11 +946,6 @@ export class Game {
     this.updateWarnings();
     this.updateHUD();
     this.maxHeatReached = Math.max(this.maxHeatReached, this.heat.heat);
-
-    if (this.pendingUpgradeOpen && this.state === 'playing' && this.progression.points > 0) {
-      this.pendingUpgradeOpen = false;
-      this.openUpgrade();
-    }
 
     this.autosaveClock += dt;
     if (this.autosaveClock >= 20) {
@@ -1189,7 +1173,9 @@ export class Game {
 
   private loadSettings(): void {
     try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
+      const currentRaw = localStorage.getItem(SETTINGS_KEY);
+      const legacyRaw = currentRaw ? null : localStorage.getItem(LEGACY_SETTINGS_KEY);
+      const raw = currentRaw ?? legacyRaw;
       if (!raw) return;
       const parsed = JSON.parse(raw) as Partial<Settings>;
       if (typeof parsed.volume === 'number') this.settings.volume = clamp(parsed.volume, 0, 1);
@@ -1199,7 +1185,8 @@ export class Game {
       if (typeof parsed.sensitivity === 'number') this.settings.sensitivity = clamp(parsed.sensitivity, 0.3, 1.6);
       if (typeof parsed.autoAttack === 'boolean') this.settings.autoAttack = parsed.autoAttack;
       if (typeof parsed.autoCounter === 'boolean') this.settings.autoCounter = parsed.autoCounter;
-      if (typeof parsed.mouseSteer === 'boolean') this.settings.mouseSteer = parsed.mouseSteer;
+      if (currentRaw && typeof parsed.mouseSteer === 'boolean') this.settings.mouseSteer = parsed.mouseSteer;
+      if (legacyRaw) this.persistSettings();
     } catch {
       // Ignore malformed settings.
     }

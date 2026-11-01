@@ -29,7 +29,7 @@ export class Boat {
   pitch = 0;
   roll = 0;
   y = BOAT.bobOffset;
-  mouseSteerEnabled = true;
+  mouseSteerEnabled = false;
   currentSpeedMultiplier = 1;
   desiredHeading = 0.2;
 

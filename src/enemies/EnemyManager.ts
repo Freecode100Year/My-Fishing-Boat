@@ -93,6 +93,10 @@ export class EnemyManager {
     return this.enemies.filter((e) => !e.dead).length;
   }
 
+  get activeEnemyLimit(): number {
+    return Math.min(WORLD.maxEnemies, 2 + Math.floor(this.elapsed / 90));
+  }
+
   reset(): void {
     for (const e of this.enemies) e.cleanup(this.scene);
     this.enemies.length = 0;
@@ -122,7 +126,7 @@ export class EnemyManager {
     this.spawnTimer -= dt;
     this.spawnLevel = this.hooks.getPlayerLevel();
 
-    if (this.activeCount < WORLD.maxEnemies && this.spawnTimer <= 0) {
+    if (this.activeCount < this.activeEnemyLimit && this.spawnTimer <= 0) {
       this.spawnEnemy();
       this.spawnTimer = WORLD.spawnInterval * randRange(0.72, 1.2) * Math.max(0.55, 1 - this.elapsed * 0.0012);
     }
@@ -197,7 +201,7 @@ export class EnemyManager {
   }
 
   spawnEnemy(forceType?: EnemyType): Enemy | null {
-    if (this.activeCount >= WORLD.maxEnemies && !forceType) return null;
+    if (this.activeCount >= this.activeEnemyLimit && !forceType) return null;
     const boatPos = this.boat.group.position;
     let x = 0;
     let z = 0;
@@ -216,7 +220,7 @@ export class EnemyManager {
 
     const type = forceType ?? this.enemyTypeForSpawn();
     const spec = ENEMIES[type];
-    const hpScale = 1 + (this.spawnLevel - 1) * 0.055 + this.elapsed / 260;
+    const hpScale = 1 + (this.spawnLevel - 1) * 0.035 + this.elapsed / 420;
     const y = this.ocean.getHeight(x, z) + spec.depth - 0.4;
     const enemy = new Enemy(this.scene, type, new THREE.Vector3(x, y, z), hpScale, {
       getPlayerPosition: () => this.boat.group.position,

@@ -34,7 +34,6 @@ export class Progression {
 
   onXpGain?: (amount: number) => void;
   onLevelUp?: (level: number, points: number) => void;
-  onPassivePoints?: (added: number, totalPoints: number) => void;
   onUpgrade?: (key: UpgradeKey) => void;
 
   reset(): void {
@@ -66,32 +65,28 @@ export class Progression {
 
   get stats(): PlayerStats {
     const u = this.upgrades;
-    const critChance = clamp(PROGRESSION.baseCritChance + u.crit * PROGRESSION.upgrades.crit.perLevel, 0, 0.95);
+    const critChance = 1 - (1 - PROGRESSION.baseCritChance) * Math.pow(1 - PROGRESSION.upgrades.crit.perLevel, u.crit);
+    const armor = 1 - Math.pow(1 - PROGRESSION.upgrades.armor.perLevel, u.armor);
     const speedMultiplier = 1 + (u.power ?? 0) * PROGRESSION.upgrades.power.perLevel;
     return {
       maxHp: 200 + u.hull * PROGRESSION.upgrades.hull.perLevel,
-      armor: clamp(u.armor * PROGRESSION.upgrades.armor.perLevel, 0, 0.65),
+      armor: Math.min(armor, 1 - Number.EPSILON),
       damageMultiplier: 1 + u.damage * PROGRESSION.upgrades.damage.perLevel,
       fireRateMultiplier: 1 + u.frequency * PROGRESSION.upgrades.frequency.perLevel,
-      critChance,
+      critChance: Math.min(critChance, 1 - Number.EPSILON),
       speedMultiplier,
       awakeningDuration:
         COMBAT.awakeningBaseDuration + critChance * 100 * COMBAT.critDurationPerPoint,
     };
   }
 
-  /** Skill points increase by 2 points per minute (1 point every 30s). */
+  /** Skill points increase by 10 points per second. */
   tick(dt: number, active: boolean): void {
     if (!active) return;
     this.passivePointTimer += dt;
-    let added = 0;
     while (this.passivePointTimer >= PROGRESSION.passivePointInterval) {
       this.passivePointTimer -= PROGRESSION.passivePointInterval;
-      this.points += 1;
-      added += 1;
-    }
-    if (added > 0) {
-      this.onPassivePoints?.(added, this.points);
+      this.points += PROGRESSION.passivePointsPerInterval;
     }
   }
 
@@ -115,7 +110,7 @@ export class Progression {
   }
 
   canUpgrade(key: UpgradeKey): boolean {
-    return this.points > 0 && this.upgrades[key] < PROGRESSION.upgrades[key].maxLevel;
+    return this.points > 0;
   }
 
   upgrade(key: UpgradeKey): boolean {
@@ -139,12 +134,13 @@ export class Progression {
   load(data: Partial<Pick<SaveData, 'level' | 'xp' | 'points' | 'passivePointTimer' | 'upgrades'>>): void {
     this.level = Math.max(1, (data.level ?? 1) | 0);
     this.xp = Math.max(0, data.xp || 0);
-    this.points = Math.max(0, (data.points ?? 0) | 0);
+    const points = Number(data.points) || 0;
+    this.points = Number.isFinite(points) ? Math.max(0, Math.floor(points)) : 0;
     this.passivePointTimer = clamp(data.passivePointTimer ?? 0, 0, PROGRESSION.passivePointInterval - 0.01);
-    const maxes = PROGRESSION.upgrades;
     (Object.keys(this.upgrades) as UpgradeKey[]).forEach((k) => {
       const raw = data.upgrades?.[k] ?? (k === 'power' ? (data.upgrades as Record<string, number> | undefined)?.mobility : 0) ?? 0;
-      this.upgrades[k] = clamp(Math.floor(raw), 0, maxes[k].maxLevel);
+      const level = Number(raw) || 0;
+      this.upgrades[k] = Number.isFinite(level) ? Math.max(0, Math.floor(level)) : 0;
     });
   }
 }

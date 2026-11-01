@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ENEMIES, EnemySpec, EnemyType } from '../config/balance';
 import { createEnemyVisual, EnemyVisual } from './EnemyModels';
 import { angleDelta, clamp, damp, randRange, smoothstep } from '../utils/math';
+import { t } from '../i18n';
 
 export type EnemyState = 'patrol' | 'chase' | 'attack' | 'hurt' | 'dead';
 
@@ -120,21 +121,21 @@ export class Enemy {
   }
 
   getDisplayName(): string {
-    return this.spec.name;
+    return t(this.spec.name);
   }
 
   getStateLabel(): string {
     switch (this.state) {
       case 'patrol':
-        return '巡游';
+        return t('巡游');
       case 'chase':
-        return '追击';
+        return t('追击');
       case 'attack':
-        return '攻击';
+        return t('攻击');
       case 'hurt':
-        return '受损';
+        return t('受损');
       case 'dead':
-        return '已摧毁';
+        return t('已摧毁');
     }
   }
 

@@ -152,7 +152,8 @@ export class SaveSystem {
     const rawUpgrades = (raw.upgrades ?? {}) as Record<string, number>;
     (Object.keys(upgrades) as UpgradeKey[]).forEach((k) => {
       const val = rawUpgrades[k] ?? (k === 'power' ? rawUpgrades.mobility : 0) ?? 0;
-      upgrades[k] = clamp(Math.floor(Number(val) || 0), 0, PROGRESSION.upgrades[k].maxLevel);
+      const level = Number(val) || 0;
+      upgrades[k] = Number.isFinite(level) ? Math.max(0, Math.floor(level)) : 0;
     });
 
     const maxHp = BOAT.maxHp + upgrades.hull * PROGRESSION.upgrades.hull.perLevel;
@@ -174,7 +175,7 @@ export class SaveSystem {
       heading: Number(raw.heading) || 0,
       level: Math.max(1, Math.floor(Number(raw.level) || 1)),
       xp: Math.max(0, Number(raw.xp) || 0),
-      points: Math.max(0, Math.floor(Number(raw.points) || 0)),
+      points: Number.isFinite(Number(raw.points)) ? Math.max(0, Math.floor(Number(raw.points))) : 0,
       passivePointTimer: clamp(Number(raw.passivePointTimer) || 0, 0, PROGRESSION.passivePointInterval - 0.01),
       upgrades,
       hp: clamp(Number(raw.hp ?? maxHp), 1, maxHp),
@@ -186,7 +187,7 @@ export class SaveSystem {
       maxHeatReached: clamp(Number(raw.maxHeatReached ?? 0), 0, 100),
       autoAttack: raw.autoAttack ?? true,
       autoCounter: raw.autoCounter ?? true,
-      mouseSteer: raw.mouseSteer ?? true,
+      mouseSteer: raw.version === 1 ? false : raw.mouseSteer ?? false,
     };
   }
 }

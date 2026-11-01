@@ -9,6 +9,7 @@ import type { Inventory } from '../inventory/Inventory';
 import type { PlayerStats } from '../progression/Progression';
 import { formatTime } from '../utils/math';
 import type { ToastKind } from '../core/EventBus';
+import { locale, t } from '../i18n';
 
 export interface UICallbacks {
   onNewGame: () => void;
@@ -96,7 +97,7 @@ export interface HUDState {
   boss: BossInfo | null;
 }
 
-const number = (v: number): string => Math.round(v).toString();
+const number = (v: number): string => new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'zh-CN', { maximumFractionDigits: 0 }).format(Math.round(v));
 
 export class UI {
   private callbacks: UICallbacks;
@@ -118,6 +119,7 @@ export class UI {
   }
 
   private setText(id: string, value: string): void {
+    value = t(value);
     if (this.cache.get(id) === value) return;
     this.cache.set(id, value);
     this.el(id).textContent = value;
@@ -204,7 +206,10 @@ export class UI {
     on('btn-quick-heal', () => this.callbacks.onQuickHeal());
     on('btn-hud-save-txt', () => this.callbacks.onExportTxt());
     on('btn-hud-load-txt', () => this.triggerFilePicker());
-    on('upgrade-ready', () => this.callbacks.onOpenUpgrade());
+    on('btn-left-skills', () => {
+      this.el<HTMLDetailsElement>('left-skill-menu').open = false;
+      this.callbacks.onOpenUpgrade();
+    });
 
     on('btn-pause-inventory', () => this.callbacks.onOpenInventory());
     on('btn-pause-upgrade', () => this.callbacks.onOpenUpgrade());
@@ -218,16 +223,16 @@ export class UI {
       const resetBtn = document.getElementById('btn-reset');
       if (!this.abandonConfirmArmed) {
         this.abandonConfirmArmed = true;
-        if (resetBtn) resetBtn.textContent = '再次点击确认放弃航程';
+        if (resetBtn) resetBtn.textContent = t('再次点击确认放弃航程');
         window.clearTimeout(this.abandonConfirmTimer);
         this.abandonConfirmTimer = window.setTimeout(() => {
           this.abandonConfirmArmed = false;
-          if (resetBtn) resetBtn.textContent = '放弃航程';
+          if (resetBtn) resetBtn.textContent = t('放弃航程');
         }, 3500);
         return;
       }
       this.abandonConfirmArmed = false;
-      if (resetBtn) resetBtn.textContent = '放弃航程';
+      if (resetBtn) resetBtn.textContent = t('放弃航程');
       this.callbacks.onAbandon();
     });
 
@@ -284,7 +289,7 @@ export class UI {
     if (exportStart) exportStart.classList.toggle('hidden', !hasSave);
     const meta = this.el('save-meta');
     meta.classList.toggle('hidden', !hasSave);
-    meta.textContent = hasSave ? `最近存档：${saveLabel}` : '';
+    meta.textContent = hasSave ? t(`最近存档：${saveLabel}`) : '';
     this.saveLabel = saveLabel;
   }
 
@@ -313,7 +318,7 @@ export class UI {
     this.hideAllOverlays();
     this.abandonConfirmArmed = false;
     const resetBtn = document.getElementById('btn-reset');
-    if (resetBtn) resetBtn.textContent = '放弃航程';
+    if (resetBtn) resetBtn.textContent = t('放弃航程');
     this.el('screen-pause').classList.remove('hidden');
     this.currentOverlay = 'pause';
   }
@@ -380,29 +385,26 @@ export class UI {
     (Object.keys(PROGRESSION.upgrades) as UpgradeKey[]).forEach((key) => {
       const def = PROGRESSION.upgrades[key];
       const level = upgrades[key] ?? 0;
-      const maxed = level >= def.maxLevel;
-      const disabled = points <= 0 || maxed;
+      const disabled = points <= 0;
       const button = document.createElement('button');
-      button.className = `upgrade-card${maxed ? ' maxed' : ''}`;
+      button.className = 'upgrade-card';
       button.disabled = disabled;
       button.style.setProperty('--accent', def.accent);
-      const pips = Array.from({ length: def.maxLevel }, (_, i) => `<i class="pip${i < level ? ' on' : ''}"></i>`).join('');
-      const next = maxed ? '已达到最高等级' : `下一级：${def.format(level + 1)}`;
+      const next = `下一级：${def.format(level + 1)}`;
       button.innerHTML = `
         <span class="upgrade-icon">${def.glyph}</span>
-        <h3>${def.name}</h3>
-        <p>${def.description}</p>
-        <div class="upgrade-level"><span>等级 ${level} / ${def.maxLevel}</span><span>${maxed ? 'MAX' : def.format(level)}</span></div>
-        <div class="pip-row">${pips}</div>
-        <div class="upgrade-next">${next}</div>
-        <span class="upgrade-take">${maxed ? '已强化完毕' : points > 0 ? '消耗 1 强化点' : '需要强化点'}</span>
+        <h3>${t(def.name)}</h3>
+        <p>${t(def.description)}</p>
+        <div class="upgrade-level"><span>${t(`等级 ${number(level)}`)}</span><span>${t(def.format(level))}</span></div>
+        <div class="upgrade-next">${t(next)}</div>
+        <span class="upgrade-take">${t(points > 0 ? '消耗 1 强化点' : '需要强化点')}</span>
       `;
       button.addEventListener('click', () => this.callbacks.onUpgrade(key));
       grid.appendChild(button);
     });
     this.el('points-value').parentElement?.classList.toggle('hidden', false);
     const bonus = this.el('heat-bonus');
-    if (bonus) bonus.textContent = `半径 30m / ${stats.awakeningDuration.toFixed(1)}s`;
+    if (bonus) bonus.textContent = t(`半径 30m / ${stats.awakeningDuration.toFixed(1)}s`);
   }
 
   private renderInventory(inventory: Inventory, stats: PlayerStats): void {
@@ -417,11 +419,11 @@ export class UI {
       const button = document.createElement('button');
       button.className = 'inv-slot populated';
       button.style.setProperty('--item-color', def.color);
-      button.title = `${def.name}\n${def.description}\n点击：${def.action}`;
+      button.title = `${t(def.name)}\n${t(def.description)}\n${t('点击：')}${t(def.action)}`;
       button.innerHTML = `
         <span class="inv-slot-icon">${def.glyph}</span>
-        <span class="inv-slot-name">${def.name}</span>
-        <span class="inv-slot-action">${def.action}</span>
+        <span class="inv-slot-name">${t(def.name)}</span>
+        <span class="inv-slot-action">${t(def.action)}</span>
         <span class="inv-slot-count">×${slot.count}</span>
       `;
       button.addEventListener('click', () => this.callbacks.onUseItem(slot.id));
@@ -459,7 +461,7 @@ export class UI {
     this.setText('level-value', String(state.level));
     this.setText('xp-value', `${number(state.xp)} / ${number(state.xpRequired)} XP`);
     this.setStyle('xp-bar', 'width', `${Math.min(100, (state.xp / state.xpRequired) * 100)}%`);
-    this.setText('passive-point-timer', `技能点 +2/分 · ${Math.ceil(state.passivePointTimeLeft)}s 后 +1`);
+    this.setText('passive-point-timer', `技能点 +10/秒 · ${Math.ceil(state.passivePointTimeLeft)}s`);
     this.el('upgrade-ready').classList.toggle('hidden', state.points <= 0);
     if (state.points > 0) {
       this.setText('hud-points-badge', String(state.points));
@@ -693,7 +695,7 @@ export class UI {
     const rail = this.el('toast-rail');
     const toast = document.createElement('div');
     toast.className = `toast ${kind}`;
-    toast.textContent = text;
+    toast.textContent = t(text);
     rail.appendChild(toast);
     while (rail.children.length > 5) rail.removeChild(rail.firstChild!);
     const timer = window.setTimeout(() => {
@@ -708,7 +710,7 @@ export class UI {
     const feed = this.el('kill-feed');
     const item = document.createElement('div');
     item.className = 'kill-item';
-    item.innerHTML = `<b>${crit ? '暴击摧毁' : '已摧毁'}</b> ${name}`;
+    item.innerHTML = `<b>${t(crit ? '暴击摧毁' : '已摧毁')}</b> ${t(name)}`;
     feed.appendChild(item);
     while (feed.children.length > 4) feed.removeChild(feed.firstChild!);
     window.setTimeout(() => {
@@ -744,7 +746,7 @@ export class UI {
     const banner = this.el('ability-banner');
     banner.classList.remove('hidden');
     const text = banner.querySelector('span:last-child');
-    if (text) text.textContent = `30 米内机械海兽瞬间熔毁 · ${duration.toFixed(1)} 秒`;
+    if (text) text.textContent = t(`30 米内机械海兽瞬间熔毁 · ${duration.toFixed(1)} 秒`);
     window.clearTimeout(this.abilityTimer);
     this.abilityTimer = window.setTimeout(() => banner.classList.add('hidden'), 2500);
   }
@@ -766,10 +768,10 @@ export class UI {
     const copy = this.el('gameover-copy');
     copy.textContent =
       kills >= 25
-        ? '你把这片海域变成了机械坟场，但怒潮仍不会停。'
+        ? t('你把这片海域变成了机械坟场，但怒潮仍不会停。')
         : kills >= 10
-          ? '渔船的灯熄灭了，声呐上只剩潮汐的杂音。'
-          : '大海收回了它的铁皮。下一次，记得带着补给回来。';
+          ? t('渔船的灯熄灭了，声呐上只剩潮汐的杂音。')
+          : t('大海收回了它的铁皮。下一次，记得带着补给回来。');
   }
 
   flashSaved(): void {
