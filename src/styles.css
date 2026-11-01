@@ -52,6 +52,34 @@ button {
   display: none !important;
 }
 
+.update-notice {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px 10px 16px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(69, 216, 197, 0.55);
+  background: rgba(4, 18, 23, 0.96);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+  color: var(--foam);
+  font: 15px/1.4 var(--font-ui);
+  pointer-events: auto;
+}
+
+.update-notice button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--teal);
+  background: rgba(69, 216, 197, 0.14);
+  color: var(--foam);
+  font: inherit;
+}
+
 #app {
   position: fixed;
   inset: 0;

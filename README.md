@@ -4,6 +4,10 @@
 
 本项目是基于 **Three.js + TypeScript** 打造的第三人称海战生存游戏，已针对 **Cloudflare Pages / Workers** 部署进行了完整预构建与优化。
 
+**在线游玩：** [https://my-fishing-boat.pages.dev/](https://my-fishing-boat.pages.dev/)
+
+游戏页面首次打开时会检查新版本，之后每 24 小时检查一次；发现新版后会提示刷新，避免打断正在进行的航程。
+
 ---
 
 ## v2.0 核心新增与优化特性

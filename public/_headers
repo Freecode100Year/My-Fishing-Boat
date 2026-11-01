@@ -9,3 +9,6 @@
 /models/*
   Cache-Control: public, max-age=604800
   Access-Control-Allow-Origin: *
+
+/version.json
+  Cache-Control: no-store, no-cache, must-revalidate

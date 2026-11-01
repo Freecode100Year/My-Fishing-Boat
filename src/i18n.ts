@@ -2,6 +2,8 @@ export type Locale = 'zh-CN' | 'en';
 
 const english: Record<string, string> = {
   'RAT TIDE — 机械怒潮': 'RAT TIDE — Iron Tide',
+  '检测到新版本，刷新页面即可更新。': 'An update is available. Refresh to load it.',
+  '刷新': 'Refresh',
   'RAT TIDE 游戏画面': 'RAT TIDE game canvas',
   '/ 渔船状态': '/ VESSEL STATUS',
   '装甲减伤': 'Damage reduction', '装甲': 'Armor', '武器伤害': 'Weapon damage', '伤害': 'Damage', '攻击': 'Attack',

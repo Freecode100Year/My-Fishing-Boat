@@ -1,9 +1,11 @@
 import './styles.css';
 import { Game } from './core/Game';
 import { applyBrowserLanguage, t } from './i18n';
+import { initializeUpdateChecker } from './update-checker';
 
 function boot(): void {
   applyBrowserLanguage();
+  initializeUpdateChecker();
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement | null;
   const error = document.getElementById('boot-error');
   try {

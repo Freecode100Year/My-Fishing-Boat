@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import ts from 'typescript';
 
 const rootDir = process.cwd();
@@ -29,6 +30,30 @@ const glbPath = path.join(rootDir, 'public/models/supply_crate.glb');
 const glbBase64 = fs.existsSync(glbPath)
   ? 'data:model/gltf-binary;base64,' + fs.readFileSync(glbPath).toString('base64')
   : '';
+
+function collectFiles(dir, files = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) collectFiles(full, files);
+    else files.push(full);
+  }
+  return files;
+}
+
+const versionHash = createHash('sha256');
+const versionInputs = [
+  path.join(rootDir, 'index.html'),
+  path.join(rootDir, 'package.json'),
+  path.join(rootDir, 'package-lock.json'),
+  path.join(rootDir, 'scripts/build-bundle.mjs'),
+  ...collectFiles(path.join(rootDir, 'src')),
+  ...collectFiles(path.join(rootDir, 'public')),
+].sort();
+for (const file of versionInputs) {
+  versionHash.update(path.relative(rootDir, file));
+  versionHash.update(fs.readFileSync(file));
+}
+const buildVersion = versionHash.digest('hex').slice(0, 16);
 
 function transpileAndRewrite(rawCode, moduleId, fileName = 'module.ts') {
   const result = ts.transpileModule(rawCode, {
@@ -160,13 +185,17 @@ ${allEntries.join(',\n')}
   for (const f of fs.readdirSync(pubModels)) {
     fs.copyFileSync(path.join(pubModels, f), path.join(distModels, f));
   }
+  const publicHeaders = path.join(rootDir, 'public/_headers');
+  if (fs.existsSync(publicHeaders)) fs.copyFileSync(publicHeaders, path.join(distDir, '_headers'));
 
   let indexHtml = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
+  indexHtml = indexHtml.replace('<meta name="app-version" content="dev" />', `<meta name="app-version" content="${buildVersion}" />`);
   indexHtml = indexHtml.replace(
     '<script type="module" src="/src/main.ts"></script>',
     () => `<link rel="stylesheet" crossorigin href="./assets/${cssFilename}">\n    <script defer src="./assets/${jsFilename}"></script>`,
   );
   fs.writeFileSync(path.join(distDir, 'index.html'), indexHtml, 'utf8');
+  fs.writeFileSync(path.join(distDir, 'version.json'), JSON.stringify({ version: buildVersion }) + '\n', 'utf8');
   console.log('Dist bundle built:', distBundleJs.length, 'bytes');
 }
 
