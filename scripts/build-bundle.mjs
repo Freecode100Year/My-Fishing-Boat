@@ -166,15 +166,17 @@ ${allEntries.join(',\n')}
   const distDir = path.join(rootDir, 'dist');
   const assetsDir = path.join(distDir, 'assets');
   fs.mkdirSync(assetsDir, { recursive: true });
+  // Remove previous bundles: asset names are content-hashed, so stale files would pile up.
   for (const f of fs.readdirSync(assetsDir)) {
-    if (f !== "index-v2.js" && f !== "index-v2.css") {
-      fs.unlinkSync(path.join(assetsDir, f));
-    }
+    fs.unlinkSync(path.join(assetsDir, f));
   }
-
   const cssContent = fs.readFileSync(path.join(srcDir, 'styles.css'), 'utf8');
-  const jsFilename = 'index-v2.js';
-  const cssFilename = 'index-v2.css';
+
+  // /assets/* is served as immutable (see public/_headers), so every build MUST
+  // use new file names. Otherwise browsers keep running last year's JS/CSS
+  // against the new index.html and the game breaks.
+  const jsFilename = `index-${buildVersion}.js`;
+  const cssFilename = `index-${buildVersion}.css`;
 
   fs.writeFileSync(path.join(assetsDir, jsFilename), distBundleJs, 'utf8');
   fs.writeFileSync(path.join(assetsDir, cssFilename), cssContent, 'utf8');
