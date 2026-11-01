@@ -41,11 +41,14 @@
 
 ### 方式二：使用 Wrangler CLI 一键部署
 
-在项目根目录下运行：
+首次部署时先创建 Pages 项目，再上传构建产物：
 
 ```bash
-npx wrangler pages deploy dist --project-name my-fishing-boat
+npx wrangler@4.78.0 pages project create my-fishing-boat --production-branch main
+npx wrangler@4.78.0 pages deploy dist --project-name my-fishing-boat --branch main
 ```
+
+后续部署只需再次运行第二条命令。
 
 ### 方式三：连接 GitHub / GitLab 自动构建部署
 
