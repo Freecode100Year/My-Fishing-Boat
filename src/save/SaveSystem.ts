@@ -153,7 +153,9 @@ export class SaveSystem {
     (Object.keys(upgrades) as UpgradeKey[]).forEach((k) => {
       const val = rawUpgrades[k] ?? (k === 'power' ? rawUpgrades.mobility : 0) ?? 0;
       const level = Number(val) || 0;
-      upgrades[k] = Number.isFinite(level) ? Math.max(0, Math.floor(level)) : 0;
+      upgrades[k] = Number.isFinite(level)
+        ? clamp(Math.floor(level), 0, PROGRESSION.upgrades[k].maxLevel)
+        : 0;
     });
 
     const maxHp = BOAT.maxHp + upgrades.hull * PROGRESSION.upgrades.hull.perLevel;
@@ -187,7 +189,6 @@ export class SaveSystem {
       maxHeatReached: clamp(Number(raw.maxHeatReached ?? 0), 0, 100),
       autoAttack: raw.autoAttack ?? true,
       autoCounter: raw.autoCounter ?? true,
-      mouseSteer: raw.version === 1 ? false : raw.mouseSteer ?? false,
     };
   }
 }

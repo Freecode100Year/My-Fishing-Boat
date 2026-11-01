@@ -79,10 +79,10 @@ const fragmentShader = /* glsl */ `
     vec3 water = mix(uDeep, uShallow, 0.28 + variation * 0.28 + N.y * 0.2);
     water += uShallow * max(vHeight, 0.0) * 0.035;
 
-    float crest = smoothstep(0.62, 1.32, vHeight + variation * 0.34);
+    float crest = smoothstep(1.0, 1.95, vHeight + variation * 0.28);
     float streak = smoothstep(0.62, 0.92, noise(vWaveUv * vec2(0.34, 0.055) + vec2(uTime * 0.08, 0.0)));
     float foam = crest * streak * 0.55;
-    foam += smoothstep(0.98, 1.28, vHeight) * 0.15;
+    foam += smoothstep(1.45, 2.25, vHeight) * 0.18;
 
     vec3 color = water + fresnel * vec3(0.13, 0.29, 0.31);
     color += uSunColor * (spec * 2.4 + glint);

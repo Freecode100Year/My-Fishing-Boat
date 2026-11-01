@@ -110,7 +110,7 @@ export class Progression {
   }
 
   canUpgrade(key: UpgradeKey): boolean {
-    return this.points > 0;
+    return this.points > 0 && this.upgrades[key] < PROGRESSION.upgrades[key].maxLevel;
   }
 
   upgrade(key: UpgradeKey): boolean {
@@ -140,7 +140,9 @@ export class Progression {
     (Object.keys(this.upgrades) as UpgradeKey[]).forEach((k) => {
       const raw = data.upgrades?.[k] ?? (k === 'power' ? (data.upgrades as Record<string, number> | undefined)?.mobility : 0) ?? 0;
       const level = Number(raw) || 0;
-      this.upgrades[k] = Number.isFinite(level) ? Math.max(0, Math.floor(level)) : 0;
+      this.upgrades[k] = Number.isFinite(level)
+        ? clamp(Math.floor(level), 0, PROGRESSION.upgrades[k].maxLevel)
+        : 0;
     });
   }
 }

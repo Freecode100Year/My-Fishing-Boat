@@ -12,15 +12,12 @@ export interface BoatUpdateContext {
   fuel: number;
   handlingPenalty: number;
   speedMultiplier: number;
-  cameraForwardYaw: number;
-  camera: THREE.PerspectiveCamera;
 }
 
 export class Boat {
   readonly group: THREE.Group;
   readonly model: BoatModel;
   private courseRing: THREE.Group;
-  private targetPointer: THREE.Mesh;
 
   heading = 0.2;
   speed = 0;
@@ -29,14 +26,12 @@ export class Boat {
   pitch = 0;
   roll = 0;
   y = BOAT.bobOffset;
-  mouseSteerEnabled = false;
   currentSpeedMultiplier = 1;
   desiredHeading = 0.2;
 
   private collisionCooldown = 0;
   private flashTimer = 0;
   private onCollision?: (impact: number) => void;
-  private tempProj = new THREE.Vector3();
 
   constructor(scene: THREE.Scene, onCollision?: (impact: number) => void) {
     this.model = createBoatModel();
@@ -48,7 +43,7 @@ export class Boat {
     scene.add(this.group);
     this.onCollision = onCollision;
 
-    // 360° tactical course ring around the boat
+    // Heading marker around the boat
     this.courseRing = new THREE.Group();
     const ringGeo = new THREE.RingGeometry(5.6, 5.82, 48);
     ringGeo.rotateX(-Math.PI / 2);
@@ -62,17 +57,6 @@ export class Boat {
     const ringMesh = new THREE.Mesh(ringGeo, ringMat);
     this.courseRing.add(ringMesh);
 
-    const ptrGeo = new THREE.ConeGeometry(0.42, 1.1, 4);
-    ptrGeo.rotateX(Math.PI / 2);
-    const ptrMat = new THREE.MeshBasicMaterial({
-      color: 0xffc04c,
-      transparent: true,
-      opacity: 0.72,
-      depthWrite: false,
-    });
-    this.targetPointer = new THREE.Mesh(ptrGeo, ptrMat);
-    this.targetPointer.position.set(0, 0.1, 6.2);
-    this.courseRing.add(this.targetPointer);
     scene.add(this.courseRing);
   }
 
@@ -90,7 +74,7 @@ export class Boat {
   }
 
   update(dt: number, ctx: BoatUpdateContext, ocean: Ocean, islands: Islands): void {
-    const { input, active, fuel, handlingPenalty, speedMultiplier, cameraForwardYaw, camera } = ctx;
+    const { input, active, fuel, handlingPenalty, speedMultiplier } = ctx;
     this.currentSpeedMultiplier = speedMultiplier;
     this.collisionCooldown = Math.max(0, this.collisionCooldown - dt);
     this.flashTimer = Math.max(0, this.flashTimer - dt);
@@ -129,7 +113,7 @@ export class Boat {
 
     this.speed = clamp(this.speed, -maxRev, maxFwd);
 
-    // Steering: support both A/D rudder and stable 360° mouse compass steering
+    // Steering is controlled by the A/D rudder keys.
     const manualRudder = active ? input.rudder : 0;
     const turnPowerBoost = 1 + (speedMultiplier - 1) * 0.42;
     const steerAuthority = clamp(Math.abs(this.speed) / 5.5, BOAT.minSteerAuthority, 1.15);
@@ -140,37 +124,6 @@ export class Boat {
       const turn = BOAT.turnRate * turnPowerBoost * this.rudder * steerAuthority * handlingPenalty * reverseSign;
       this.heading += turn * dt;
       this.desiredHeading = this.heading;
-    } else if (active && this.mouseSteerEnabled && !input.rightDown) {
-      // Project boat position to NDC so mouse angle is measured 360° around the boat on screen
-      this.tempProj.copy(this.group.position).project(camera);
-      const boatNX = clamp(this.tempProj.x, -0.8, 0.8);
-      const boatNY = clamp(this.tempProj.y, -0.8, 0.8);
-      const mx = input.mouseNX - boatNX;
-      const my = input.mouseNY - boatNY;
-      const screenDist = Math.hypot(mx, my);
-
-      // Deadzone near the boat center prevents micro-oscillation
-      if (screenDist > 0.065) {
-        // Screen-space angle: 0 = up (camera forward), +PI/2 = right, +-PI = down, -PI/2 = left
-        // Note: in Three.js world coordinates (+X = sin(yaw), +Z = cos(yaw)), turning right decreases yaw (-mx)
-        const screenAngle = Math.atan2(-mx, my);
-        this.desiredHeading = cameraForwardYaw + screenAngle;
-        const diff = angleDelta(this.heading, this.desiredHeading);
-
-        if (Math.abs(diff) > 0.008) {
-          const maxTurnStep = BOAT.mouseTurnRate * turnPowerBoost * steerAuthority * handlingPenalty * dt;
-          const desiredRudder = clamp(diff / 0.8, -1, 1);
-          this.rudder = damp(this.rudder, desiredRudder, BOAT.rudderResponse * 3.0, dt);
-          const step = clamp(diff * 4.5 * dt, -maxTurnStep, maxTurnStep);
-          this.heading += step;
-        } else {
-          this.heading = this.desiredHeading;
-          this.rudder = damp(this.rudder, 0, BOAT.rudderResponse * 3.0, dt);
-        }
-      } else {
-        this.desiredHeading = this.heading;
-        this.rudder = damp(this.rudder, 0, BOAT.rudderResponse * 2.5, dt);
-      }
     } else {
       this.desiredHeading = this.heading;
       this.rudder = damp(this.rudder, 0, BOAT.rudderResponse * 2.2, dt);
@@ -227,7 +180,6 @@ export class Boat {
     if (active) {
       this.courseRing.position.set(px, this.y - BOAT.bobOffset + 0.18, pz);
       this.courseRing.rotation.y = this.desiredHeading;
-      this.targetPointer.visible = this.mouseSteerEnabled;
     }
 
     this.group.updateMatrixWorld(true);

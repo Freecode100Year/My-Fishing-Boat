@@ -62,8 +62,8 @@ export class FollowCamera {
         CAMERA.minPitch,
         CAMERA.maxPitch,
       );
-    } else if (active && !boat.mouseSteerEnabled) {
-      // In keyboard-only steering mode (M off), gently follow behind the boat when driving
+    } else if (active) {
+      // Gently follow behind the boat when driving
       if (Math.abs(input.throttle) > 0.1 || Math.abs(input.rudder) > 0.1) {
         const behindBoat = boat.heading + Math.PI;
         this.orbitYaw += angleDelta(this.orbitYaw, behindBoat) * (1 - Math.exp(-1.8 * dt));

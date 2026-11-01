@@ -32,7 +32,6 @@ interface Settings {
   sensitivity: number;
   autoAttack: boolean;
   autoCounter: boolean;
-  mouseSteer: boolean;
 }
 
 const SETTINGS_KEY = 'rattide.settings.v2';
@@ -86,7 +85,6 @@ export class Game {
     sensitivity: 1,
     autoAttack: true,
     autoCounter: true,
-    mouseSteer: false,
   };
   private menuTime = 0;
   private gameOverSink = 0;
@@ -130,7 +128,6 @@ export class Game {
 
     this.input = new Input(canvas);
     this.boat = new Boat(this.scene, (impact) => this.handleCollision(impact));
-    this.boat.mouseSteerEnabled = this.settings.mouseSteer;
     this.boat.reset(0, 0, 0.25);
     this.followCamera.reset(this.boat);
     this.survival.setMaxHp(this.progression.stats.maxHp, false);
@@ -148,7 +145,6 @@ export class Game {
       onGetTxtSnapshot: () => this.getTxtSnapshot(),
       onToggleAutoAttack: () => this.toggleAutoAttack(),
       onToggleAutoCounter: () => this.toggleAutoCounter(),
-      onToggleMouseSteer: () => this.toggleMouseSteer(),
       onQuickHeal: () => this.quickHeal(),
       onOpenInventory: () => this.openInventory(),
       onCloseInventory: () => this.closeInventory(),
@@ -290,7 +286,6 @@ export class Game {
     this.combat.reset();
     this.combat.autoAttackEnabled = this.settings.autoAttack;
     this.combat.autoCounterEnabled = this.settings.autoCounter;
-    this.boat.mouseSteerEnabled = this.settings.mouseSteer;
     this.heat.reset();
     this.heatFX.deactivate();
     this.effects.update(0);
@@ -321,7 +316,7 @@ export class Game {
     this.loot.spawn('diesel', 1, 26, -8);
     this.save(false);
 
-    this.ui.toast('鼠标瞄准已就绪 · 船头鼠标转向默认关闭（按 M 开启）· 自动攻击(F) · 自动反击(G)', 'info');
+    this.ui.toast('鼠标只用于瞄准 · A/D 手动转向 · 自动攻击(F) · 自动反击(G)', 'info');
     window.setTimeout(() => {
       if (this.state === 'playing') this.ui.toast('靠近海上漂浮物资将自动磁吸拾取入舱', 'info');
     }, 5500);
@@ -363,10 +358,6 @@ export class Game {
     if (typeof data.autoCounter === 'boolean') {
       this.settings.autoCounter = data.autoCounter;
       this.combat.autoCounterEnabled = data.autoCounter;
-    }
-    if (typeof data.mouseSteer === 'boolean') {
-      this.settings.mouseSteer = data.mouseSteer;
-      this.boat.mouseSteerEnabled = data.mouseSteer;
     }
     this.heatFX.deactivate();
     this.boat.reset(data.playerX ?? 0, data.playerZ ?? 0, data.heading ?? 0);
@@ -418,7 +409,6 @@ export class Game {
       maxHeatReached: this.maxHeatReached,
       autoAttack: this.combat.autoAttackEnabled,
       autoCounter: this.combat.autoCounterEnabled,
-      mouseSteer: this.boat.mouseSteerEnabled,
     };
   }
 
@@ -479,14 +469,6 @@ export class Game {
     this.persistSettings();
     this.audio.ui();
     this.ui.toast(`自动反击已${this.combat.autoCounterEnabled ? '开启' : '关闭'}`, this.combat.autoCounterEnabled ? 'good' : 'info');
-  }
-
-  private toggleMouseSteer(): void {
-    this.boat.mouseSteerEnabled = !this.boat.mouseSteerEnabled;
-    this.settings.mouseSteer = this.boat.mouseSteerEnabled;
-    this.persistSettings();
-    this.audio.ui();
-    this.ui.toast(`360°鼠标转向已${this.boat.mouseSteerEnabled ? '开启' : '关闭'}`, this.boat.mouseSteerEnabled ? 'good' : 'info');
   }
 
   private quickHeal(): void {
@@ -893,7 +875,6 @@ export class Game {
     }
     if (this.input.justPressed('KeyF')) this.toggleAutoAttack();
     if (this.input.justPressed('KeyG')) this.toggleAutoCounter();
-    if (this.input.justPressed('KeyM')) this.toggleMouseSteer();
     if (this.input.justPressed('KeyH')) this.quickHeal();
 
     if (this.input.justPressed('Digit1')) this.useItem('meat', false);
@@ -913,8 +894,6 @@ export class Game {
         fuel: this.survival.fuel,
         handlingPenalty: this.survival.handlingPenalty,
         speedMultiplier: this.progression.stats.speedMultiplier,
-        cameraForwardYaw: this.followCamera.forwardYaw,
-        camera: this.followCamera.camera,
       },
       this.ocean,
       this.islands,
@@ -1020,7 +999,6 @@ export class Game {
       playTime: this.playTime,
       autoAttack: this.combat.autoAttackEnabled,
       autoCounter: this.combat.autoCounterEnabled,
-      mouseSteer: this.boat.mouseSteerEnabled,
       engagementMode: this.combat.engagementMode,
       target,
       boss: boss && !boss.dead ? { name: boss.spec.name, hp: boss.hp, maxHp: boss.maxHp } : null,
@@ -1074,8 +1052,6 @@ export class Game {
             fuel: this.survival.fuel,
             handlingPenalty: 1,
             speedMultiplier: 1,
-            cameraForwardYaw: this.followCamera.forwardYaw,
-            camera: this.followCamera.camera,
           },
           this.ocean,
           this.islands,
@@ -1185,7 +1161,6 @@ export class Game {
       if (typeof parsed.sensitivity === 'number') this.settings.sensitivity = clamp(parsed.sensitivity, 0.3, 1.6);
       if (typeof parsed.autoAttack === 'boolean') this.settings.autoAttack = parsed.autoAttack;
       if (typeof parsed.autoCounter === 'boolean') this.settings.autoCounter = parsed.autoCounter;
-      if (currentRaw && typeof parsed.mouseSteer === 'boolean') this.settings.mouseSteer = parsed.mouseSteer;
       if (legacyRaw) this.persistSettings();
     } catch {
       // Ignore malformed settings.

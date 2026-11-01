@@ -39,27 +39,27 @@ export interface EnemySpec {
 export const WORLD = {
   playRadius: 410,
   oceanSize: 2200,
-  oceanSegments: 220,
+  oceanSegments: 300,
   spawnRadiusMin: 78,
   spawnRadiusMax: 165,
   initialSpawnDelay: 4,
   maxEnemies: 6,
   spawnInterval: 8.0,
   islandSafeZone: 26,
-  fogColor: 0x7a9da1,
-  fogDensity: 0.0042,
-  skyTop: 0x1c4c63,
-  skyHorizon: 0x9bb7b4,
-  sunColor: 0xffd3a0,
+  fogColor: 0xa9cbd5,
+  fogDensity: 0.0036,
+  skyTop: 0x4d98c6,
+  skyHorizon: 0xd6e5df,
+  sunColor: 0xffe3b0,
 };
 
 export const OCEAN = {
-  waveA: { amp: 0.62, freqX: 0.037, freqZ: 0.013, speed: 0.94 },
-  waveB: { amp: 0.34, freqX: -0.017, freqZ: 0.058, speed: 1.23 },
-  waveC: { amp: 0.16, freqX: 0.093, freqZ: 0.071, speed: 1.85 },
-  waveD: { amp: 0.82, freqX: 0.011, freqZ: -0.026, speed: 0.42 },
-  waterDeep: 0x062a35,
-  waterShallow: 0x1a7a80,
+  waveA: { amp: 0.9, freqX: 0.045, freqZ: 0.016, speed: 1.05 },
+  waveB: { amp: 0.56, freqX: -0.022, freqZ: 0.068, speed: 1.34 },
+  waveC: { amp: 0.24, freqX: 0.11, freqZ: 0.085, speed: 2.05 },
+  waveD: { amp: 1.08, freqX: 0.014, freqZ: -0.031, speed: 0.52 },
+  waterDeep: 0x0b3546,
+  waterShallow: 0x247f86,
   waterFoam: 0xd3efe6,
   waveTint: 0x2e97a0,
 };
@@ -80,7 +80,6 @@ export const BOAT = {
   rudderResponse: 2.4,
   maxRudder: 1,
   turnRate: 1.35,
-  mouseTurnRate: 2.2,
   minSteerAuthority: 0.72,
   fuelMax: 100,
   fuelIdleBurn: 0.06,
@@ -143,6 +142,7 @@ export const PROGRESSION = {
       glyph: '▣',
       description: '加固船壳与关键舱室，降低所有来源的伤害。',
       perLevel: 0.05,
+      maxLevel: 1000,
       accent: '#78a8cc',
       format: (level: number) => `${Math.min(99, Math.round((1 - Math.pow(0.95, level)) * 100))}% 减伤`,
     },
@@ -151,6 +151,7 @@ export const PROGRESSION = {
       glyph: '▤',
       description: '焊接隔水舱，提高渔船最大船体值并立即修复新增部分。',
       perLevel: 35,
+      maxLevel: 1000,
       accent: '#d6bd72',
       format: (level: number) => `+${level * 35} 最大船体`,
     },
@@ -159,6 +160,7 @@ export const PROGRESSION = {
       glyph: '✦',
       description: '更换炮管与高爆弹头，提高主炮的基础伤害。',
       perLevel: 0.12,
+      maxLevel: 1000,
       accent: '#ec8d54',
       format: (level: number) => `+${Math.round(level * 12)}% 武器伤害`,
     },
@@ -167,6 +169,7 @@ export const PROGRESSION = {
       glyph: '≋',
       description: '优化装填机构，缩短主炮射击间隔。',
       perLevel: 0.08,
+      maxLevel: 1000,
       accent: '#67d4b8',
       format: (level: number) => `+${Math.round(level * 8)}% 攻击速度`,
     },
@@ -175,6 +178,7 @@ export const PROGRESSION = {
       glyph: '◇',
       description: '校准火控核心。暴击造成 10 倍伤害，并为热力觉醒延长持续时间。',
       perLevel: 0.03,
+      maxLevel: 1000,
       accent: '#e8c15f',
       format: (level: number) => `${Math.min(99, Math.round((1 - (1 - PROGRESSION.baseCritChance) * Math.pow(0.97, level)) * 100))}% 暴击率`,
     },
@@ -183,6 +187,7 @@ export const PROGRESSION = {
       glyph: '⚡',
       description: '改装涡轮增压柴油机与推进螺旋桨，提升渔船移动速度、加速与转向灵敏度。',
       perLevel: 0.12,
+      maxLevel: 1000,
       accent: '#4cd6e8',
       format: (level: number) => `+${Math.round(level * 12)}% 移动速度`,
     },
@@ -408,7 +413,6 @@ export interface SaveData {
   maxHeatReached: number;
   autoAttack?: boolean;
   autoCounter?: boolean;
-  mouseSteer?: boolean;
 }
 
 export const GAME_VERSION = 2;

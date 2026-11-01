@@ -39,14 +39,15 @@ const skyFragment = /* glsl */ `
     color += uSunColor * pow(sun, 340.0) * 2.4;
     color += uSunColor * pow(sun, 12.0) * 0.24;
 
-    float horizonGlow = exp(-abs(d.y) * 13.0);
-    color += vec3(0.145, 0.145, 0.12) * horizonGlow;
+    float horizonGlow = exp(-abs(d.y) * 10.0);
+    color += vec3(0.12, 0.14, 0.13) * horizonGlow;
 
-    vec2 cloudUv = d.xz / max(d.y + 0.34, 0.12);
-    float n = noise(cloudUv * 1.5 + vec2(2.0, 0.0));
-    n += noise(cloudUv * 3.2 + vec2(-1.3, 2.2)) * 0.5;
-    float cloud = smoothstep(0.76, 1.04, n) * smoothstep(0.02, 0.28, d.y) * 0.22;
-    color = mix(color, vec3(0.66, 0.70, 0.67), cloud);
+    vec2 cloudUv = d.xz / max(d.y + 0.3, 0.16);
+    float n = noise(cloudUv * 2.0 + vec2(2.0, 0.0)) * 0.68;
+    n += noise(cloudUv * 4.8 + vec2(-1.3, 2.2)) * 0.32;
+    float cloud = smoothstep(0.48, 0.7, n) * smoothstep(0.015, 0.22, d.y) * 0.48;
+    vec3 cloudColor = mix(vec3(0.79, 0.86, 0.88), uSunColor, 0.16 * sun);
+    color = mix(color, cloudColor, cloud);
 
     gl_FragColor = vec4(color, 1.0);
     #include <tonemapping_fragment>
@@ -90,7 +91,7 @@ export class Sky {
   readonly group = new THREE.Group();
   readonly sunLight: THREE.DirectionalLight;
   readonly hemiLight: THREE.HemisphereLight;
-  readonly sunDirection = new THREE.Vector3(-0.38, 0.36, -0.85).normalize();
+  readonly sunDirection = new THREE.Vector3(-0.35, 0.68, -0.65).normalize();
   private dome: THREE.Mesh;
   private clouds: THREE.Group;
 
@@ -137,7 +138,7 @@ export class Sky {
       const mat2 = new THREE.SpriteMaterial({
         map: cloudTex,
         transparent: true,
-        opacity: 0.18 + rng() * 0.18,
+        opacity: 0.24 + rng() * 0.16,
         depthWrite: false,
         color: 0xb7c4c2,
         fog: false,
@@ -145,19 +146,19 @@ export class Sky {
       const sprite = new THREE.Sprite(mat2);
       const angle = rng() * Math.PI * 2;
       const radius = 470 + rng() * 340;
-      sprite.position.set(Math.cos(angle) * radius, 75 + rng() * 105, Math.sin(angle) * radius);
-      sprite.scale.set(180 + rng() * 220, 38 + rng() * 55, 1);
+      sprite.position.set(Math.cos(angle) * radius, 100 + rng() * 130, Math.sin(angle) * radius);
+      sprite.scale.set(220 + rng() * 260, 46 + rng() * 68, 1);
       this.clouds.add(sprite);
     }
     this.group.add(this.clouds);
 
     scene.add(this.group);
 
-    this.hemiLight = new THREE.HemisphereLight(0xb8d8d4, 0x0a1d22, 1.5);
+    this.hemiLight = new THREE.HemisphereLight(0xc5e4f5, 0x34483f, 1.7);
     scene.add(this.hemiLight);
 
-    this.sunLight = new THREE.DirectionalLight(0xffd2a1, 3.2);
-    this.sunLight.position.set(-95, 145, -130);
+    this.sunLight = new THREE.DirectionalLight(0xffe1b7, 3.0);
+    this.sunLight.position.set(-95, 170, -130);
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
     this.sunLight.shadow.camera.near = 1;

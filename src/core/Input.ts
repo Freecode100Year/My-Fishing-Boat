@@ -27,7 +27,7 @@ export class Input {
       if (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLSelectElement) {
         return;
       }
-      if (['Tab', 'Space', 'KeyE', 'KeyR', 'KeyU', 'KeyF', 'KeyG', 'KeyM', 'KeyH'].includes(e.code)) {
+      if (['Tab', 'Space', 'KeyE', 'KeyR', 'KeyU', 'KeyF', 'KeyG', 'KeyH'].includes(e.code)) {
         e.preventDefault();
       }
       if (!this.keys.has(e.code)) this.pressed.add(e.code);

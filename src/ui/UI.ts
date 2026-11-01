@@ -23,7 +23,6 @@ export interface UICallbacks {
   onGetTxtSnapshot: () => string;
   onToggleAutoAttack: () => void;
   onToggleAutoCounter: () => void;
-  onToggleMouseSteer: () => void;
   onQuickHeal: () => void;
   onOpenInventory: () => void;
   onCloseInventory: () => void;
@@ -91,7 +90,6 @@ export interface HUDState {
   playTime: number;
   autoAttack: boolean;
   autoCounter: boolean;
-  mouseSteer: boolean;
   engagementMode: 'manual' | 'counter' | 'auto' | 'idle';
   target: TargetInfo | null;
   boss: BossInfo | null;
@@ -202,7 +200,6 @@ export class UI {
 
     on('btn-toggle-auto-attack', () => this.callbacks.onToggleAutoAttack());
     on('btn-toggle-auto-counter', () => this.callbacks.onToggleAutoCounter());
-    on('btn-toggle-mouse-steer', () => this.callbacks.onToggleMouseSteer());
     on('btn-quick-heal', () => this.callbacks.onQuickHeal());
     on('btn-hud-save-txt', () => this.callbacks.onExportTxt());
     on('btn-hud-load-txt', () => this.triggerFilePicker());
@@ -385,19 +382,20 @@ export class UI {
     (Object.keys(PROGRESSION.upgrades) as UpgradeKey[]).forEach((key) => {
       const def = PROGRESSION.upgrades[key];
       const level = upgrades[key] ?? 0;
-      const disabled = points <= 0;
+      const maxed = level >= def.maxLevel;
+      const disabled = points <= 0 || maxed;
       const button = document.createElement('button');
-      button.className = 'upgrade-card';
+      button.className = `upgrade-card${maxed ? ' maxed' : ''}`;
       button.disabled = disabled;
       button.style.setProperty('--accent', def.accent);
-      const next = `下一级：${def.format(level + 1)}`;
+      const next = maxed ? '已达到最高等级' : `下一级：${def.format(level + 1)}`;
       button.innerHTML = `
         <span class="upgrade-icon">${def.glyph}</span>
         <h3>${t(def.name)}</h3>
         <p>${t(def.description)}</p>
-        <div class="upgrade-level"><span>${t(`等级 ${number(level)}`)}</span><span>${t(def.format(level))}</span></div>
+        <div class="upgrade-level"><span>${t(`等级 ${number(level)} / ${def.maxLevel}`)}</span><span>${t(def.format(level))}</span></div>
         <div class="upgrade-next">${t(next)}</div>
-        <span class="upgrade-take">${t(points > 0 ? '消耗 1 强化点' : '需要强化点')}</span>
+        <span class="upgrade-take">${t(maxed ? '等级已满' : points > 0 ? '消耗 1 强化点' : '需要强化点')}</span>
       `;
       button.addEventListener('click', () => this.callbacks.onUpgrade(key));
       grid.appendChild(button);
@@ -470,7 +468,6 @@ export class UI {
     // Update tactical bar buttons
     this.el('btn-toggle-auto-attack').classList.toggle('active', state.autoAttack);
     this.el('btn-toggle-auto-counter').classList.toggle('active', state.autoCounter);
-    this.el('btn-toggle-mouse-steer').classList.toggle('active', state.mouseSteer);
 
     this.setText('hunger-value', number(state.hunger));
     this.setText('thirst-value', number(state.thirst));
