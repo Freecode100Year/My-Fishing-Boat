@@ -94,7 +94,11 @@ export class EnemyManager {
   }
 
   get activeEnemyLimit(): number {
-    return Math.min(WORLD.maxEnemies, 2 + Math.floor(this.elapsed / 90));
+    const growthSteps = Math.floor(this.elapsed / WORLD.enemyGrowthInterval);
+    return Math.min(
+      WORLD.maxEnemies,
+      Math.ceil(WORLD.initialEnemyLimit * Math.pow(WORLD.enemyGrowthFactor, growthSteps)),
+    );
   }
 
   reset(): void {

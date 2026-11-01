@@ -41,7 +41,7 @@ const english: Record<string, string> = {
   '鼠标只用于瞄准 · A/D 手动转向 · 自动攻击(F) · 自动反击(G)': 'Mouse is for aiming · steer with A/D · auto attack (F) · counterattack (G)',
   'U 技能 (+10点/秒)': 'U Skills (+10/sec)',
   '鱼群与技能成长': 'Fish and skill growth',
-  '鱼群会随着航行时间增加，最多同时出现 6 只。航行期间每秒自动增加 10 个技能点，升级时另获 1 点。每项技能最高 1000 级；通过左侧技能菜单或按 U 打开技能窗。': 'More fish arrive as you sail, up to 6 at a time. Gain 10 skill points per second and 1 more on level-up. Each skill caps at level 1,000; use the left skills menu or press U to open the panel.',
+  '鱼群上限每 10 秒增加 50%，最多同时出现 32 只。航行期间每秒自动增加 10 个技能点，升级时另获 1 点。每项技能最高 1000 级；通过左侧技能菜单或按 U 打开技能窗。': 'The fish limit grows by 50% every 10 seconds, up to 32 at once. Gain 10 skill points per second and 1 more on level-up. Each skill caps at level 1,000; use the left skills menu or press U to open the panel.',
   '技能 (+10点/秒)': 'Skills (+10/sec)',
   '每秒 +10 技能点 · 范围秒杀': '+10 skill points/sec · area takedown',
   '开始新航程': 'Start new voyage', '继续存档': 'Continue save', '导入 TXT 存档': 'Import TXT save', '导出 TXT 存档': 'Export TXT save',
