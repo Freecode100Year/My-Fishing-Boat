@@ -79,9 +79,14 @@
           </button>
         </div>
 
-        <button id="btn-left-skills" class="left-skill-menu" type="button">
-          <span>装备强化</span><kbd>U</kbd>
-        </button>
+        <div class="left-menu-stack">
+          <button id="btn-left-skills" class="left-menu-btn" type="button">
+            <span>装备强化</span><kbd>U</kbd>
+          </button>
+          <button id="btn-left-inventory" class="left-menu-btn" type="button">
+            <span>物品仓库</span><kbd>Tab</kbd>
+          </button>
+        </div>
 
         <div id="boss-panel" class="boss-panel hidden">
           <div class="boss-title"><span>深渊机械章鱼</span><b id="boss-value">100%</b></div>
@@ -232,7 +237,7 @@
       <section id="screen-inventory" class="screen overlay-screen hidden">
         <div class="overlay-frame inventory-frame">
           <div class="overlay-heading">
-            <div><span class="eyebrow">RUSTBUCKET HOLD</span><h2>船舱与补给</h2></div>
+            <div><span class="eyebrow">RUSTBUCKET HOLD</span><h2>物品仓库</h2></div>
             <button id="btn-inventory-close" class="close-btn" aria-label="关闭">×</button>
           </div>
           <div class="inventory-layout">

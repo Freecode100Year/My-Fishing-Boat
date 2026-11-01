@@ -78,6 +78,8 @@ export class Game {
   private hungerWarned = false;
   private thirstWarned = false;
   private upgradeReturn: 'playing' | 'pause' = 'playing';
+  private repeatedUpgradeKey: UpgradeKey | null = null;
+  private repeatedUpgradeCount = 0;
   private inventoryReturn: 'playing' | 'pause' = 'playing';
   private helpReturn: 'playing' | 'pause' = 'playing';
   private settings: Settings = {
@@ -176,7 +178,8 @@ export class Game {
       onCloseHelp: () => this.closeHelp(),
       onRestart: () => this.startNewGame(),
       onAbandon: () => this.abandonRun(),
-      onUpgrade: (key) => this.applyUpgrade(key),
+      onUpgrade: (key, repeating) => this.applyUpgrade(key, repeating),
+      onUpgradeRepeatEnd: () => this.finishUpgradeRepeat(),
       onUseItem: (id) => this.useItem(id, true),
       onVolume: (volume) => this.setVolume(volume),
       onQuality: (quality) => this.setQuality(quality),
@@ -642,7 +645,7 @@ export class Game {
     this.clearInput();
   }
 
-  private applyUpgrade(key: UpgradeKey): void {
+  private applyUpgrade(key: UpgradeKey, repeating = false): void {
     if (!this.progression.upgrade(key)) {
       this.audio.denied();
       return;
@@ -653,14 +656,35 @@ export class Game {
     if (this.survival.maxHp !== oldMax) {
       this.survival.hp = clamp(this.survival.hp, 0, stats.maxHp);
     }
-    this.audio.ui();
+    if (repeating) {
+      this.repeatedUpgradeKey = key;
+      this.repeatedUpgradeCount++;
+    } else {
+      this.audio.ui();
+    }
     this.ui.updateUpgrade(this.progression.points, this.progression.upgrades, stats);
-    this.ui.toast(`已强化：${PROGRESSION.upgrades[key].name} (Lv.${this.progression.upgrades[key]})`, 'good');
+    if (!repeating) {
+      this.ui.toast(`已强化：${PROGRESSION.upgrades[key].name} (Lv.${this.progression.upgrades[key]})`, 'good');
+    }
     if (this.progression.points <= 0) {
       window.setTimeout(() => {
         if (this.state === 'upgrade') this.closeUpgrade();
       }, 380);
     }
+    if (!repeating) this.save(false);
+  }
+
+  private finishUpgradeRepeat(): void {
+    if (this.repeatedUpgradeKey === null || this.repeatedUpgradeCount <= 0) return;
+    const key = this.repeatedUpgradeKey;
+    const count = this.repeatedUpgradeCount;
+    this.repeatedUpgradeKey = null;
+    this.repeatedUpgradeCount = 0;
+    this.audio.ui();
+    this.ui.toast(
+      `连续强化 ${count} 次：${PROGRESSION.upgrades[key].name} (Lv.${this.progression.upgrades[key]})`,
+      'good',
+    );
     this.save(false);
   }
 

@@ -32,7 +32,8 @@ export interface UICallbacks {
   onCloseHelp: () => void;
   onRestart: () => void;
   onAbandon: () => void;
-  onUpgrade: (key: UpgradeKey) => void;
+  onUpgrade: (key: UpgradeKey, repeating?: boolean) => void;
+  onUpgradeRepeatEnd: () => void;
   onUseItem: (id: ItemId) => void;
   onVolume: (volume: number) => void;
   onQuality: (quality: 'high' | 'medium' | 'low') => void;
@@ -239,6 +240,7 @@ export class UI {
     on('btn-hud-save-txt', () => this.callbacks.onExportTxt());
     on('btn-hud-load-txt', () => this.triggerFilePicker());
     on('btn-left-skills', () => this.callbacks.onOpenUpgrade());
+    on('btn-left-inventory', () => this.callbacks.onOpenInventory());
 
     on('btn-pause-inventory', () => this.callbacks.onOpenInventory());
     on('btn-pause-upgrade', () => this.callbacks.onOpenUpgrade());
@@ -418,47 +420,57 @@ export class UI {
     }
     this.setText('points-value', String(points));
     const grid = this.el('upgrade-grid');
-    grid.innerHTML = '';
     (Object.keys(PROGRESSION.upgrades) as UpgradeKey[]).forEach((key) => {
       const def = PROGRESSION.upgrades[key];
       const level = upgrades[key] ?? 0;
       const maxed = level >= def.maxLevel;
       const disabled = points <= 0 || maxed;
-      const button = document.createElement('button');
+      let button = grid.querySelector<HTMLButtonElement>(`[data-upgrade-key="${key}"]`);
+      if (!button) {
+        button = document.createElement('button');
+        button.dataset.upgradeKey = key;
+        button.className = 'upgrade-card';
+        button.style.setProperty('--accent', def.accent);
+        button.innerHTML = `
+          <span class="upgrade-icon">${def.glyph}</span>
+          <h3>${t(def.name)}</h3>
+          <p>${t(def.description)}</p>
+          <div class="upgrade-level"><span></span><span></span></div>
+          <div class="upgrade-next"></div>
+          <span class="upgrade-take"></span>
+        `;
+        button.addEventListener('pointerdown', (event) => {
+          if (event.pointerType !== 'mouse' || event.button !== 0) return;
+          event.stopPropagation();
+          this.stopUpgradeRepeat();
+          this.activeUpgradeKey = key;
+          this.ignoreUpgradeClick = true;
+          this.callbacks.onUpgrade(key, true);
+          if (this.activeUpgradeKey === key) {
+            this.upgradeRepeatTimer = window.setInterval(() => {
+              this.callbacks.onUpgrade(key, true);
+            }, 75);
+          }
+        });
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (event.detail > 0 && this.ignoreUpgradeClick) {
+            this.ignoreUpgradeClick = false;
+            return;
+          }
+          this.callbacks.onUpgrade(key);
+        });
+        grid.appendChild(button);
+      }
+
       button.className = `upgrade-card${maxed ? ' maxed' : ''}`;
       button.disabled = disabled;
-      button.style.setProperty('--accent', def.accent);
       const next = maxed ? '已达到最高等级' : `下一级：${def.format(level + 1)}`;
-      button.innerHTML = `
-        <span class="upgrade-icon">${def.glyph}</span>
-        <h3>${t(def.name)}</h3>
-        <p>${t(def.description)}</p>
-        <div class="upgrade-level"><span>${t(`等级 ${number(level)} / ${def.maxLevel}`)}</span><span>${t(def.format(level))}</span></div>
-        <div class="upgrade-next">${t(next)}</div>
-        <span class="upgrade-take">${t(maxed ? '等级已满' : points > 0 ? '点击强化 · 按住连续强化' : '需要强化点')}</span>
-      `;
-      button.addEventListener('pointerdown', (event) => {
-        if (event.pointerType !== 'mouse' || event.button !== 0) return;
-        event.stopPropagation();
-        this.stopUpgradeRepeat();
-        this.activeUpgradeKey = key;
-        this.ignoreUpgradeClick = true;
-        this.callbacks.onUpgrade(key);
-        if (this.activeUpgradeKey === key) {
-          this.upgradeRepeatTimer = window.setInterval(() => {
-            this.callbacks.onUpgrade(key);
-          }, 120);
-        }
-      });
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        if (event.detail > 0 && this.ignoreUpgradeClick) {
-          this.ignoreUpgradeClick = false;
-          return;
-        }
-        this.callbacks.onUpgrade(key);
-      });
-      grid.appendChild(button);
+      const levelValues = button.querySelectorAll('.upgrade-level span');
+      levelValues[0].textContent = t(`等级 ${number(level)} / ${def.maxLevel}`);
+      levelValues[1].textContent = t(def.format(level));
+      button.querySelector('.upgrade-next')!.textContent = t(next);
+      button.querySelector('.upgrade-take')!.textContent = t(maxed ? '等级已满' : points > 0 ? '点击强化 · 按住连续强化' : '需要强化点');
     });
     this.el('points-value').parentElement?.classList.toggle('hidden', false);
     const bonus = this.el('heat-bonus');
@@ -466,11 +478,13 @@ export class UI {
   }
 
   private stopUpgradeRepeat(): void {
+    const wasActive = this.activeUpgradeKey !== null;
     if (this.upgradeRepeatTimer !== null) {
       window.clearInterval(this.upgradeRepeatTimer);
       this.upgradeRepeatTimer = null;
     }
     this.activeUpgradeKey = null;
+    if (wasActive) this.callbacks.onUpgradeRepeatEnd();
   }
 
   private renderInventory(inventory: Inventory, stats: PlayerStats): void {

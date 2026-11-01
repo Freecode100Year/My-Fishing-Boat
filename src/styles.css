@@ -2172,47 +2172,55 @@ select {
 }
 
 
-.left-skill-menu {
-  appearance: none;
+.left-menu-stack {
   position: absolute;
   left: 16px;
   top: 50%;
   z-index: 12;
   width: min(220px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+  pointer-events: auto;
+  transform: translateY(-50%);
+}
+
+.left-menu-btn {
+  appearance: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  pointer-events: auto;
+  width: 100%;
   color: var(--foam);
   background: rgba(4, 18, 23, 0.94);
   border: 1px solid var(--panel-edge);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-  transform: translateY(-50%);
   padding: 12px 14px;
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: 15px;
   text-align: left;
-  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
-.left-skill-menu:hover {
+.left-menu-btn:hover {
   border-color: rgba(91, 218, 200, 0.5);
   background: rgba(10, 38, 42, 0.97);
-  transform: translateY(-50%) translateX(2px);
+  transform: translateX(2px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
 }
 
-.left-skill-menu:focus-visible {
+.left-menu-btn:focus-visible {
   outline: 2px solid var(--teal);
   outline-offset: 3px;
 }
 
-.left-skill-menu kbd {
+.left-menu-btn kbd {
   color: #8ca5a5;
 }
 
 @media (max-width: 700px) {
-  .left-skill-menu { left: 8px; width: min(190px, calc(100vw - 16px)); }
+  .left-menu-stack { left: 8px; width: min(190px, calc(100vw - 16px)); }
+  .left-menu-btn { padding: 10px 12px; font-size: 13px; }
 }
 
 /* ───────── v2.1 gameplay HUD: waves, score, combo, boost/salvo dock, hit marker ───────── */
