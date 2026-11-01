@@ -1,6 +1,13 @@
 export type Locale = 'zh-CN' | 'en';
 
 const english: Record<string, string> = {
+  '瞄准 ·': 'Aim ·', '转向': 'Steer', '怒潮将至': 'Tide incoming', '分数': 'Score', '连杀': 'CHAIN', '冲刺 / 撞击': 'Boost / ram', '霰弹齐射': 'Salvo', '就绪': 'Ready',
+  '怒潮来袭': 'Tide surge', '机械海兽群正在逼近': 'A pack of mechanical creatures is closing in',
+  '冲刺': 'Boost', '齐射': 'Salvo', '怒潮': 'Wave', '最高连杀': 'Best chain', '本局分数': 'Score', '★ 新纪录！': '★ New record!',
+  '冲刺撞击 · 霰弹齐射': 'Boost ramming · salvo',
+  '连杀与怒潮': 'Kill chains & tide waves',
+  '按住 Shift 冲刺（可撞击海兽、闪避墨弹）· Q 霰弹齐射': 'Hold Shift to boost (ram creatures, dodge ink) · Q fires a salvo',
+  '撞击摧毁！': 'Rammed and destroyed!', '怒潮退去了……': 'The tide recedes…',
   'RAT TIDE — 机械怒潮': 'RAT TIDE — Iron Tide',
   '检测到新版本，刷新页面即可更新。': 'An update is available. Refresh to load it.',
   '刷新': 'Refresh',
@@ -114,6 +121,19 @@ const english: Record<string, string> = {
   '未找到游戏画布。': 'Game canvas not found.', '请确认浏览器支持 WebGL2，并尝试使用最新版 Chrome / Edge / Firefox。': 'Make sure your browser supports WebGL2 and try the latest Chrome, Edge, or Firefox.',
 };
 
+const waveDynamic: Array<[RegExp, string]> = [
+  [/^怒潮 (\d+) · 剩余 (\d+)$/, 'Wave $1 · $2 left'],
+  [/^下一波怒潮 (\d+)s$/, 'Next wave $1s'],
+  [/^第 (\d+) 波怒潮$/, 'Wave $1'],
+  [/^(\d+) 只机械海兽正在猎杀你$/, '$1 mechanical creatures are hunting you'],
+  [/^第 (\d+) 波怒潮已击退$/, 'Wave $1 repelled'],
+  [/^\+(\d+) XP · 船体修复 · 补给已投放$/, '+$1 XP · hull repaired · supplies dropped'],
+  [/^(\d+) 连杀！$/, '$1 KILL CHAIN!'],
+  [/^经验与分数 ×(.+)$/, 'XP & score ×$1'],
+  [/^最高纪录 (.+)$/, 'Best $1'],
+  [/^连杀结束 · 本次 (\d+) 连杀$/, 'Chain ended · $1 kills'],
+];
+
 const dynamicEnglish: Array<[RegExp, string]> = [
   [/^等级提升至 (\d+)，获得强化点（当前可用 (\d+) 点）$/, 'Level up: $1 · $2 skill points available'],
   [/^航行历练：技能点 \+(\d+)（每分钟 \+2 · 当前可用 (\d+) 点，按 U 加点）$/, 'Sailing bonus: +$1 skill points · $2 available · press U to spend'],
@@ -156,7 +176,7 @@ export function t(source: string): string {
   if (locale !== 'en') return source;
   const direct = english[source];
   if (direct) return direct;
-  for (const [pattern, replacement] of dynamicEnglish) {
+  for (const [pattern, replacement] of [...waveDynamic, ...dynamicEnglish]) {
     const match = source.match(pattern);
     if (match) {
       return replacement.replace(/\$(\d+)/g, (_placeholder, index: string) => {

@@ -1,7 +1,7 @@
 {
   "name": "my-fishing-boat",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "type": "module",
   "description": "RAT TIDE — a third-person mechanized-sea fishing boat survival game built with Three.js",
   "scripts": {

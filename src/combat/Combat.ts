@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COMBAT } from '../config/balance';
+import { COMBAT, SALVO } from '../config/balance';
 import type { Boat } from '../boat/Boat';
 import type { Input } from '../core/Input';
 import type { EnemyManager } from '../enemies/EnemyManager';
@@ -16,6 +16,7 @@ export interface CombatHooks {
   onDamageNumber: (worldPosition: THREE.Vector3, amount: number, crit: boolean) => void;
   onScreenShake: (amount: number) => void;
   onReloadState: (reloading: boolean) => void;
+  onHitConfirm?: (killed: boolean, crit: boolean) => void;
 }
 
 interface Projectile {
@@ -44,6 +45,7 @@ export class Combat {
   autoCounterEnabled = true;
 
   private cooldown = 0;
+  salvoCooldown = 0;
   private projectiles: Projectile[] = [];
   private raycaster = new THREE.Raycaster();
   private aimPoint = new THREE.Vector3(0, 0, 50);
@@ -129,6 +131,7 @@ export class Combat {
     }
     this.projectiles.length = 0;
     this.cooldown = 0;
+    this.salvoCooldown = 0;
     this.aimEnemy = null;
     this.counterTarget = null;
     this.counterTimer = 0;
@@ -156,6 +159,7 @@ export class Combat {
 
   update(dt: number, input: Input, active: boolean): void {
     this.cooldown = Math.max(0, this.cooldown - dt);
+    this.salvoCooldown = Math.max(0, this.salvoCooldown - dt);
     this.counterTimer = Math.max(0, this.counterTimer - dt);
     if (this.counterTarget && (this.counterTarget.dead || this.counterTimer <= 0)) {
       this.counterTarget = null;
@@ -309,20 +313,54 @@ export class Combat {
     const stats = this.progression.stats;
     const interval = COMBAT.baseInterval / stats.fireRateMultiplier;
     this.cooldown = interval;
-    this.shotsFired++;
 
     const muzzle = this.boat.getMuzzleWorld();
-    const target = this.aimPoint.clone();
-    const dir = target.clone().sub(muzzle).normalize();
-
+    const dir = this.aimPoint.clone().sub(muzzle).normalize();
     const spread = COMBAT.spreadBase + (this.survival.painActive ? COMBAT.painSpread : 0);
     dir.x += (Math.random() - 0.5) * spread;
     dir.y += (Math.random() - 0.5) * spread * 0.6;
     dir.z += (Math.random() - 0.5) * spread;
     dir.normalize();
 
+    this.spawnShell(muzzle, dir, 1);
+    this.muzzleEffects(muzzle, 1);
+    this.audio.cannon();
+    // Do NOT trigger screen shake on every rapid-fire cannon shot (prevents continuous camera vibration)
+  }
+
+  /** Q: fire a fan of shells toward the current aim point. Returns false while on cooldown. */
+  fireSalvo(): boolean {
+    if (this.salvoCooldown > 0 || this.survival.dead) return false;
+    this.salvoCooldown = SALVO.cooldown;
+
+    // Make sure the aim point reflects the cursor even if nothing is locked.
+    const muzzle = this.boat.getMuzzleWorld();
+    const base = this.aimPoint.clone().sub(muzzle);
+    const horizontal = Math.hypot(base.x, base.z);
+    if (horizontal < 0.5) return false;
+    const yaw = Math.atan2(base.x, base.z);
+    const pitch = Math.atan2(base.y, horizontal);
+    const n = SALVO.shells;
+    for (let i = 0; i < n; i++) {
+      const f = n === 1 ? 0 : i / (n - 1) - 0.5;
+      const a = yaw + f * SALVO.spreadRadians * 2;
+      const p = pitch + (Math.random() - 0.5) * 0.01;
+      const dir = new THREE.Vector3(Math.sin(a) * Math.cos(p), Math.sin(p), Math.cos(a) * Math.cos(p)).normalize();
+      this.spawnShell(muzzle, dir, SALVO.damageMultiplier);
+    }
+    this.muzzleEffects(muzzle, 2.2);
+    this.audio.cannon();
+    this.audio.cannon();
+    this.hooks.onScreenShake(0.35);
+    return true;
+  }
+
+  private spawnShell(muzzle: THREE.Vector3, dir: THREE.Vector3, damageScale: number): void {
+    const stats = this.progression.stats;
+    this.shotsFired++;
     const crit = Math.random() < stats.critChance;
-    const damage = COMBAT.baseDamage * stats.damageMultiplier * this.survival.damagePenalty * (crit ? COMBAT.critMultiplier : 1);
+    const damage =
+      COMBAT.baseDamage * stats.damageMultiplier * this.survival.damagePenalty * damageScale * (crit ? COMBAT.critMultiplier : 1);
 
     const mesh = new THREE.Mesh(this.tracerGeo, this.tracerMat);
     mesh.position.copy(muzzle);
@@ -338,27 +376,27 @@ export class Combat {
     this.projectiles.push({
       mesh,
       glow,
-      velocity: dir.multiplyScalar(COMBAT.projectileSpeed),
+      velocity: dir.clone().multiplyScalar(COMBAT.projectileSpeed),
       previous: muzzle.clone(),
       life: COMBAT.projectileLife,
       damage,
       crit,
       age: 0,
     });
+  }
 
+  private muzzleEffects(muzzle: THREE.Vector3, scale: number): void {
     this.boat.flashMuzzle();
-    this.effects.burst(muzzle, 0xffcf7a, 10, {
-      speed: 5,
+    this.effects.burst(muzzle, 0xffcf7a, Math.round(10 * scale), {
+      speed: 5 * Math.sqrt(scale),
       size: 1.2,
       life: 0.22,
       gravity: -2,
-      spread: 0.1,
+      spread: 0.1 * scale,
       upward: 0.4,
       drag: 2,
     });
-    this.effects.spawnFlash(muzzle, 2.8, 0.09);
-    this.audio.cannon();
-    // Do NOT trigger screen shake on every rapid-fire cannon shot (prevents continuous camera vibration)
+    this.effects.spawnFlash(muzzle, 2.8 * scale, 0.09);
   }
 
   private updateProjectiles(dt: number): void {
@@ -399,6 +437,7 @@ export class Combat {
         this.audio.hit(p.crit);
         this.hooks.onDamageNumber(hitPos, result.dealt, p.crit);
         this.hooks.onValidHit(p.damage, p.crit);
+        this.hooks.onHitConfirm?.(result.killed, p.crit);
         if (p.crit) {
           this.effects.spawnFlash(hitPos, 3.5, 0.16);
         }

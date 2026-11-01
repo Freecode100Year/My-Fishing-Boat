@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOAT, WORLD } from '../config/balance';
+import { BOAT, BOOST, WORLD } from '../config/balance';
 import { BoatModel, createBoatModel } from './BoatModel';
 import { angleDelta, clamp, damp, shipForward } from '../utils/math';
 import type { Input } from '../core/Input';
@@ -12,6 +12,8 @@ export interface BoatUpdateContext {
   fuel: number;
   handlingPenalty: number;
   speedMultiplier: number;
+  /** True while the Shift boost is engaged (energy is managed by the Game). */
+  boost?: boolean;
 }
 
 export class Boat {
@@ -28,6 +30,7 @@ export class Boat {
   y = BOAT.bobOffset;
   currentSpeedMultiplier = 1;
   desiredHeading = 0.2;
+  boosting = false;
 
   private collisionCooldown = 0;
   private flashTimer = 0;
@@ -76,6 +79,9 @@ export class Boat {
   update(dt: number, ctx: BoatUpdateContext, ocean: Ocean, islands: Islands): void {
     const { input, active, fuel, handlingPenalty, speedMultiplier } = ctx;
     this.currentSpeedMultiplier = speedMultiplier;
+    this.boosting = !!ctx.boost && active && fuel > 0.01;
+    const boostSpeed = this.boosting ? BOOST.speedMultiplier : 1;
+    const boostAccel = this.boosting ? BOOST.accelMultiplier : 1;
     this.collisionCooldown = Math.max(0, this.collisionCooldown - dt);
     this.flashTimer = Math.max(0, this.flashTimer - dt);
     this.model.muzzleFlash.visible = this.flashTimer > 0;
@@ -86,16 +92,17 @@ export class Boat {
       this.model.muzzleFlash.material.rotation += dt * 18;
     }
 
-    const targetThrottle = active ? input.throttle : 0;
+    // Boosting always pushes forward, even if W is not held.
+    const targetThrottle = active ? (this.boosting ? 1 : input.throttle) : 0;
     const throttleRate = targetThrottle === 0 ? BOAT.throttleDecay : BOAT.throttleResponse;
     this.throttle = damp(this.throttle, targetThrottle, throttleRate * 2.2, dt);
 
-    const maxFwd = BOAT.maxForwardSpeed * speedMultiplier;
+    const maxFwd = BOAT.maxForwardSpeed * speedMultiplier * boostSpeed;
     const maxRev = BOAT.maxReverseSpeed * (1 + (speedMultiplier - 1) * 0.65);
 
     if (fuel > 0.01 && active) {
       if (this.throttle > 0.02) {
-        this.speed += BOAT.acceleration * speedMultiplier * this.throttle * dt;
+        this.speed += BOAT.acceleration * speedMultiplier * boostAccel * this.throttle * dt;
       } else if (this.throttle < -0.02) {
         if (this.speed > 0.15) {
           this.speed -= BOAT.brakePower * Math.abs(this.throttle) * dt;
@@ -111,7 +118,11 @@ export class Boat {
     this.speed -= dragSign * drag * dt;
     if (Math.abs(this.speed) < 0.025) this.speed = 0;
 
-    this.speed = clamp(this.speed, -maxRev, maxFwd);
+    // When the boost ends, bleed off excess speed smoothly instead of snapping.
+    if (this.speed > maxFwd) {
+      this.speed = Math.max(maxFwd, this.speed - BOAT.brakePower * 0.45 * dt);
+    }
+    this.speed = Math.max(this.speed, -maxRev);
 
     // Steering is controlled by the A/D rudder keys.
     const manualRudder = active ? input.rudder : 0;

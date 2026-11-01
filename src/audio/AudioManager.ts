@@ -230,6 +230,16 @@ export class AudioManager {
     this.tone(480, 0.045, 'square', 0.035, 390);
   }
 
+  boost(): void {
+    this.noise(0.55, 0.22, 500, 'bandpass', 0, 2600);
+    this.tone(90, 0.45, 'sawtooth', 0.09, 210);
+  }
+
+  combo(count: number): void {
+    const base = 440 + Math.min(count, 30) * 14;
+    [1, 1.25, 1.5].forEach((m, i) => this.tone(base * m, 0.12, 'square', 0.07, base * m * 1.02, i * 0.06));
+  }
+
   denied(): void {
     this.tone(150, 0.12, 'square', 0.06, 95);
   }

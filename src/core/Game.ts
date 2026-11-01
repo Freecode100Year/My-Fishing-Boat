@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ItemId, PROGRESSION, SaveData, UpgradeKey, WORLD } from '../config/balance';
+import { BOAT, BOOST, CAMERA, COMBO, EnemyType, ItemId, PROGRESSION, SALVO, SaveData, UpgradeKey, WAVES, WORLD } from '../config/balance';
 import { Input } from './Input';
 import { EventBus } from './EventBus';
 import { Ocean } from '../world/Ocean';
@@ -22,7 +22,7 @@ import { HeatFX } from '../abilities/HeatFX';
 import { AudioManager } from '../audio/AudioManager';
 import { SaveSystem } from '../save/SaveSystem';
 import { UI, HUDState, TargetInfo } from '../ui/UI';
-import { clamp } from '../utils/math';
+import { clamp, damp } from '../utils/math';
 
 type GameState = 'menu' | 'playing' | 'paused' | 'upgrade' | 'inventory' | 'help' | 'gameover';
 
@@ -36,6 +36,7 @@ interface Settings {
 
 const SETTINGS_KEY = 'rattide.settings.v2';
 const LEGACY_SETTINGS_KEY = 'rattide.settings.v1';
+const BEST_SCORE_KEY = 'rattide.best.v1';
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -87,6 +88,26 @@ export class Game {
     autoCounter: true,
   };
   private menuTime = 0;
+
+  // Boost / ram
+  private boostEnergy: number = BOOST.maxEnergy;
+  private boostRegenDelay = 0;
+  private boostLocked = false;
+  private wasBoosting = false;
+
+  // Combo & score
+  private combo = 0;
+  private comboTimer = 0;
+  private bestCombo = 0;
+  private score = 0;
+  private bestScore = 0;
+
+  // Tide waves
+  private wave = 0;
+  private waveActive = false;
+  private waveTimer: number = WAVES.firstDelay;
+  private waveElapsed = 0;
+  private waveEnemies = new Set<Enemy>();
   private gameOverSink = 0;
   private lastFrame = performance.now();
   private disposed = false;
@@ -111,6 +132,7 @@ export class Game {
     this.scene.background = new THREE.Color(WORLD.fogColor);
 
     this.loadSettings();
+    this.bestScore = this.loadBestScore();
 
     this.ocean = new Ocean(this.scene);
     this.sky = new Sky(this.scene);
@@ -192,6 +214,7 @@ export class Game {
         onDamageNumber: (pos, amount, crit) => this.showDamageNumber(pos, amount, crit),
         onScreenShake: (amount) => this.followCamera.addShake(amount),
         onReloadState: (reloading) => this.ui && this.setReloadState(reloading),
+        onHitConfirm: (killed) => this.ui.hitMarker(killed),
       },
     );
     this.combat.autoAttackEnabled = this.settings.autoAttack;
@@ -269,6 +292,25 @@ export class Game {
     this.ui.toast('已打捞海上补给箱！获得物资与 +18 XP', 'good');
   }
 
+  private resetRunState(): void {
+    this.boostEnergy = BOOST.maxEnergy;
+    this.boostRegenDelay = 0;
+    this.boostLocked = false;
+    this.wasBoosting = false;
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.bestCombo = 0;
+    this.score = 0;
+    this.wave = 0;
+    this.waveActive = false;
+    this.waveTimer = WAVES.firstDelay;
+    this.waveElapsed = 0;
+    this.waveEnemies.clear();
+    this.ui?.hideWaveBanner();
+    this.followCamera.camera.fov = CAMERA.fov;
+    this.followCamera.camera.updateProjectionMatrix();
+  }
+
   private startNewGame(): void {
     void this.audio.unlock();
     this.saveSystem.clear();
@@ -299,6 +341,7 @@ export class Game {
     this.hungerWarned = false;
     this.thirstWarned = false;
     this.gameOverSink = 0;
+    this.resetRunState();
     this.started = true;
     this.state = 'playing';
     this.ui.hideStart();
@@ -317,6 +360,9 @@ export class Game {
     this.save(false);
 
     this.ui.toast('鼠标只用于瞄准 · A/D 手动转向 · 自动攻击(F) · 自动反击(G)', 'info');
+    window.setTimeout(() => {
+      if (this.state === 'playing') this.ui.toast('按住 Shift 冲刺（可撞击海兽、闪避墨弹）· Q 霰弹齐射', 'good');
+    }, 2600);
     window.setTimeout(() => {
       if (this.state === 'playing') this.ui.toast('靠近海上漂浮物资将自动磁吸拾取入舱', 'info');
     }, 5500);
@@ -360,6 +406,12 @@ export class Game {
       this.combat.autoCounterEnabled = data.autoCounter;
     }
     this.heatFX.deactivate();
+    this.resetRunState();
+    this.score = Math.max(0, Math.floor(Number(data.score) || 0));
+    this.wave = Math.max(0, Math.floor(Number(data.wave) || 0));
+    this.bestCombo = Math.max(0, Math.floor(Number(data.bestCombo) || 0));
+    const savedWaveTimer = Number(data.waveTimer);
+    this.waveTimer = Number.isFinite(savedWaveTimer) && savedWaveTimer > 0 ? clamp(savedWaveTimer, 8, WAVES.interval) : WAVES.firstDelay;
     this.boat.reset(data.playerX ?? 0, data.playerZ ?? 0, data.heading ?? 0);
     this.followCamera.reset(this.boat);
     this.autosaveClock = 0;
@@ -409,6 +461,11 @@ export class Game {
       maxHeatReached: this.maxHeatReached,
       autoAttack: this.combat.autoAttackEnabled,
       autoCounter: this.combat.autoCounterEnabled,
+      score: this.score,
+      // An unfinished wave is replayed after loading.
+      wave: this.waveActive ? Math.max(0, this.wave - 1) : this.wave,
+      waveTimer: this.waveActive ? 12 : this.waveTimer,
+      bestCombo: this.bestCombo,
     };
   }
 
@@ -748,9 +805,25 @@ export class Game {
 
   private onEnemyDeath(enemy: Enemy, byHeat: boolean): void {
     this.kills++;
+    this.waveEnemies.delete(enemy);
+
+    // Kill chain: kills inside the window keep raising the multiplier.
+    this.combo = this.comboTimer > 0 ? this.combo + 1 : 1;
+    this.comboTimer = COMBO.window;
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    const mult = this.comboMultiplier;
+
     const hpScale = Math.max(1, enemy.maxHp / enemy.spec.hp);
-    const xp = Math.round(enemy.spec.xp * (1 + (hpScale - 1) * 0.48));
+    const baseXp = Math.round(enemy.spec.xp * (1 + (hpScale - 1) * 0.48));
+    const xp = Math.round(baseXp * mult);
+    this.score += Math.round(baseXp * 10 * mult);
     this.progression.addXp(xp);
+    if (COMBO.milestones.includes(this.combo)) {
+      this.audio.combo(this.combo);
+      if (!this.waveBannerBusy) {
+        this.ui.showWaveBanner('KILL CHAIN', `${this.combo} 连杀！`, `经验与分数 ×${mult.toFixed(2)}`, 'combo', 1300);
+      }
+    }
     this.loot.spawnDrops(enemy.type, enemy.group.position);
     this.audio.explosion(enemy.isBoss ? 1.5 : 0.75);
     this.followCamera.addShake(enemy.isBoss ? 0.72 : byHeat ? 0.2 : 0.28);
@@ -816,12 +889,22 @@ export class Game {
     this.ui.setHeatFlash(false);
     this.ui.hideAbilityBanner();
     this.heatFX.deactivate();
-    this.ui.showGameOver(
-      this.progression.level,
-      this.kills,
-      this.playTime,
-      this.maxHeatReached,
-    );
+    const newRecord = this.score > this.bestScore;
+    if (newRecord) {
+      this.bestScore = this.score;
+      this.saveBestScore();
+    }
+    this.ui.showGameOver({
+      level: this.progression.level,
+      kills: this.kills,
+      time: this.playTime,
+      maxHeat: this.maxHeatReached,
+      wave: this.waveActive ? Math.max(0, this.wave - 1) : this.wave,
+      bestCombo: this.bestCombo,
+      score: this.score,
+      bestScore: this.bestScore,
+      newRecord,
+    });
     this.saveSystem.clear();
     this.clearInput();
   }
@@ -841,6 +924,7 @@ export class Game {
     this.kills = 0;
     this.playTime = 0;
     this.maxHeatReached = 0;
+    this.resetRunState();
     this.boat.reset(0, 0, 0.25);
     this.followCamera.reset(this.boat);
     this.audio.setPaused(true);
@@ -885,7 +969,9 @@ export class Game {
     if (this.input.justPressed('Digit6')) this.useItem('painkiller', false);
     if (this.input.justPressed('Digit7')) this.useItem('regen', false);
     if (this.input.justPressed('KeyR')) this.useItem('metal', false);
+    if (this.input.justPressed('KeyQ') && !this.combat.fireSalvo()) this.audio.denied();
 
+    const boosting = this.updateBoost(dt);
     this.boat.update(
       dt,
       {
@@ -894,6 +980,7 @@ export class Game {
         fuel: this.survival.fuel,
         handlingPenalty: this.survival.handlingPenalty,
         speedMultiplier: this.progression.stats.speedMultiplier,
+        boost: boosting,
       },
       this.ocean,
       this.islands,
@@ -902,7 +989,11 @@ export class Game {
     this.followCamera.update(dt, this.boat, this.input, this.ocean, true);
 
     this.enemies.update(dt, this.followCamera.camera, true);
+    this.updateRamming();
     this.combat.update(dt, this.input, true);
+    this.updateCombo(dt);
+    this.updateWaves(dt);
+    if (this.survival.dead) return;
 
     this.heat.update(dt, this.boat, this.enemies, true, this.progression.stats.awakeningDuration);
     this.heatFX.update(
@@ -917,6 +1008,10 @@ export class Game {
 
     const wake = this.boat.model.wakeAnchor.getWorldPosition(new THREE.Vector3()).clone();
     this.effects.emitWake(wake, this.boat.forward.x, this.boat.forward.z, this.boat.speedRatio, dt);
+    if (this.boat.boosting) {
+      // Extra spray while boosting.
+      this.effects.emitWake(wake, this.boat.forward.x, this.boat.forward.z, 1, dt);
+    }
     const smoke = this.boat.model.smokeAnchor.getWorldPosition(new THREE.Vector3()).clone();
     this.effects.emitSmoke(smoke, dt, 0.7 + Math.abs(this.boat.throttle));
     this.effects.update(dt);
@@ -1002,6 +1097,19 @@ export class Game {
       engagementMode: this.combat.engagementMode,
       target,
       boss: boss && !boss.dead ? { name: boss.spec.name, hp: boss.hp, maxHp: boss.maxHp } : null,
+      boostRatio: this.boostEnergy / BOOST.maxEnergy,
+      boosting: this.boat.boosting,
+      boostLocked: this.boostLocked,
+      salvoCooldown: this.combat.salvoCooldown,
+      salvoMax: SALVO.cooldown,
+      combo: this.combo,
+      comboMultiplier: this.comboMultiplier,
+      comboTimerRatio: this.comboTimer / COMBO.window,
+      waveLabel: this.waveActive
+        ? `怒潮 ${this.wave} · 剩余 ${this.waveEnemies.size}`
+        : `下一波怒潮 ${Math.ceil(this.waveTimer)}s`,
+      waveSurge: this.waveActive,
+      score: this.score,
     };
     this.ui.updateHUD(hud, this.input.mouseX, this.input.mouseY);
 
@@ -1070,10 +1178,221 @@ export class Game {
       }
     }
 
+    this.updateFov(dt);
     this.audio.update(this.boat.speedRatio, this.state === 'playing' ? this.boat.throttle : 0);
     this.renderer.render(this.scene, this.followCamera.camera);
     this.input.endFrame();
   };
+
+  private get comboMultiplier(): number {
+    if (this.combo <= 1) return 1;
+    return Math.min(COMBO.maxMultiplier, 1 + (this.combo - 1) * COMBO.stepMultiplier);
+  }
+
+  /** True while a wave surge/clear banner should not be replaced by a combo banner. */
+  private waveBannerBusy = false;
+
+  private updateBoost(dt: number): boolean {
+    const wants = this.input.boostHeld && this.survival.fuel > 0.01;
+    if (this.boostLocked && this.boostEnergy >= BOOST.minToStart) this.boostLocked = false;
+
+    let boosting = false;
+    if (wants && !this.boostLocked && this.boostEnergy > 0) {
+      // Starting a new boost needs a minimum charge; continuing one does not.
+      boosting = this.wasBoosting || this.boostEnergy >= BOOST.minToStart;
+    }
+    if (wants && !this.wasBoosting && !boosting && this.input.justPressed(this.input.isDown('ShiftLeft') ? 'ShiftLeft' : 'ShiftRight')) {
+      this.audio.denied();
+    }
+
+    if (boosting) {
+      this.boostEnergy -= BOOST.drainPerSecond * dt;
+      this.boostRegenDelay = BOOST.regenDelay;
+      if (this.boostEnergy <= 0) {
+        this.boostEnergy = 0;
+        this.boostLocked = true;
+        boosting = false;
+      }
+    } else {
+      this.boostRegenDelay = Math.max(0, this.boostRegenDelay - dt);
+      if (this.boostRegenDelay <= 0) {
+        this.boostEnergy = Math.min(BOOST.maxEnergy, this.boostEnergy + BOOST.regenPerSecond * dt);
+      }
+    }
+
+    if (boosting && !this.wasBoosting) {
+      this.audio.boost();
+      this.followCamera.addShake(0.18);
+    }
+    this.wasBoosting = boosting;
+    return boosting;
+  }
+
+  /** Ramming: hitting an enemy at speed damages and knocks it away. */
+  private updateRamming(): void {
+    const speed = this.boat.speed;
+    if (speed < BOOST.ramMinSpeed) return;
+    const pos = this.boat.group.position;
+    const fwd = this.boat.forward;
+    const bowX = pos.x + fwd.x * 3;
+    const bowZ = pos.z + fwd.z * 3;
+    const stats = this.progression.stats;
+    const maxFwd = BOAT.maxForwardSpeed * stats.speedMultiplier;
+    for (const enemy of this.enemies.enemies) {
+      if (enemy.dead || enemy.ramCooldown > 0) continue;
+      const ex = enemy.group.position.x;
+      const ez = enemy.group.position.z;
+      const reach = enemy.hitRadius + 2.6;
+      const dBow = Math.hypot(ex - bowX, ez - bowZ);
+      const dMid = Math.hypot(ex - pos.x, ez - pos.z);
+      if (dBow > reach && dMid > reach) continue;
+
+      enemy.ramCooldown = BOOST.ramCooldown;
+      const speedFactor = clamp(speed / Math.max(1, maxFwd), 0.5, 2);
+      const damage = BOOST.ramBaseDamage * stats.damageMultiplier * speedFactor * (this.boat.boosting ? 1.5 : 1);
+      const hitPos = enemy.group.position.clone();
+      hitPos.y = Math.max(hitPos.y + 1, 1);
+      const result = enemy.takeDamage(damage, true);
+
+      let nx = ex - pos.x;
+      let nz = ez - pos.z;
+      const len = Math.hypot(nx, nz) || 1;
+      nx = nx / len + fwd.x * 0.8;
+      nz = nz / len + fwd.z * 0.8;
+      const len2 = Math.hypot(nx, nz) || 1;
+      enemy.knockback(nx / len2, nz / len2, BOOST.ramKnockback);
+
+      this.effects.explosion(hitPos, 0xffb860, 0.55);
+      this.effects.hitSparks(hitPos, 0xffe39b, true);
+      this.audio.hit(true);
+      this.followCamera.addShake(0.5);
+      this.showDamageNumber(hitPos, result.dealt, true);
+      this.ui.hitMarker(result.killed);
+      this.heat.addHit(true, stats.awakeningDuration);
+      this.boat.speed *= 0.72;
+      this.survival.damage(BOOST.ramSelfDamage, stats.armor, false, false);
+      if (result.killed) this.ui.toast('撞击摧毁！', 'good');
+    }
+  }
+
+  private updateCombo(dt: number): void {
+    if (this.comboTimer <= 0) return;
+    this.comboTimer -= dt;
+    if (this.comboTimer <= 0) {
+      this.comboTimer = 0;
+      if (this.combo >= 3) this.ui.toast(`连杀结束 · 本次 ${this.combo} 连杀`, 'info');
+      this.combo = 0;
+    }
+  }
+
+  private updateWaves(dt: number): void {
+    if (!this.waveActive) {
+      this.waveTimer -= dt;
+      if (this.waveTimer <= 0) this.startWave();
+      return;
+    }
+    this.waveElapsed += dt;
+    for (const e of this.waveEnemies) {
+      if (e.dead || !this.enemies.enemies.includes(e)) this.waveEnemies.delete(e);
+    }
+    if (this.waveEnemies.size === 0) {
+      this.clearWave(true);
+    } else if (this.waveElapsed > 150) {
+      // Safety valve: a straggler stuck somewhere should not stall the tide forever.
+      for (const e of this.waveEnemies) e.aggressive = false;
+      this.waveEnemies.clear();
+      this.clearWave(false);
+    }
+  }
+
+  private startWave(): void {
+    const next = this.wave + 1;
+    const count = Math.min(WAVES.maxCount, WAVES.baseCount + next);
+    const sharkChance = next >= 2 ? Math.min(0.5, 0.12 * next) : 0;
+    const spawned: Enemy[] = [];
+    for (let i = 0; i < count; i++) {
+      const type: EnemyType = Math.random() < sharkChance ? 'armoredShark' : 'corrodedFish';
+      const e = this.enemies.spawnEnemy(type);
+      if (e) spawned.push(e);
+    }
+    if (next % WAVES.bossEvery === 0 && !this.enemies.activeBoss) {
+      const boss = this.enemies.spawnEnemy('mechOctopus');
+      if (boss) spawned.push(boss);
+    }
+    if (spawned.length === 0) {
+      // No valid spawn spot right now (e.g. hugging the world edge). Try again shortly.
+      this.waveTimer = 5;
+      return;
+    }
+    this.wave = next;
+    this.waveActive = true;
+    this.waveElapsed = 0;
+    for (const e of spawned) {
+      e.aggressive = true;
+      this.waveEnemies.add(e);
+    }
+    this.audio.alarm();
+    this.followCamera.addShake(0.3);
+    this.waveBannerBusy = true;
+    this.ui.showWaveBanner('TIDE SURGE', `第 ${this.wave} 波怒潮`, `${spawned.length} 只机械海兽正在猎杀你`, 'surge');
+    window.setTimeout(() => (this.waveBannerBusy = false), 2600);
+  }
+
+  private clearWave(reward: boolean): void {
+    this.waveActive = false;
+    this.waveTimer = WAVES.interval;
+    if (!reward) {
+      this.ui.toast('怒潮退去了……', 'info');
+      return;
+    }
+    const xp = WAVES.clearXpPerWave * this.wave;
+    this.progression.addXp(xp);
+    this.score += 250 * this.wave;
+    const maxHp = this.progression.stats.maxHp;
+    this.survival.heal(maxHp * WAVES.clearHealRatio);
+
+    const p = this.boat.group.position;
+    const drops: ItemId[] = ['metal', 'metal', 'water', 'diesel', 'meat'];
+    if (this.wave >= 2) drops.push('bandage');
+    if (this.wave >= 3) drops.push(Math.random() < 0.5 ? 'regen' : 'painkiller');
+    drops.forEach((id, i) => {
+      const a = (i / drops.length) * Math.PI * 2;
+      this.loot.spawn(id, 1, p.x + Math.cos(a) * 7, p.z + Math.sin(a) * 7);
+    });
+
+    this.audio.levelUp();
+    this.waveBannerBusy = true;
+    this.ui.showWaveBanner('TIDE BROKEN', `第 ${this.wave} 波怒潮已击退`, `+${xp} XP · 船体修复 · 补给已投放`, 'cleared');
+    window.setTimeout(() => (this.waveBannerBusy = false), 2600);
+  }
+
+  private updateFov(dt: number): void {
+    const cam = this.followCamera.camera;
+    const target = CAMERA.fov + (this.state === 'playing' && this.boat.boosting ? BOOST.fovKick : 0);
+    const next = damp(cam.fov, target, 5, dt);
+    if (Math.abs(next - cam.fov) > 0.005) {
+      cam.fov = next;
+      cam.updateProjectionMatrix();
+    }
+  }
+
+  private loadBestScore(): number {
+    try {
+      const raw = localStorage.getItem(BEST_SCORE_KEY);
+      const n = raw ? Number(JSON.parse(raw)?.score) : 0;
+      return Number.isFinite(n) ? Math.max(0, n) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private saveBestScore(): void {
+    try {
+      localStorage.setItem(BEST_SCORE_KEY, JSON.stringify({ score: this.bestScore, at: Date.now() }));
+    } catch {
+      // Optional.
+    }
+  }
 
   private onResize(): void {
     const w = window.innerWidth;

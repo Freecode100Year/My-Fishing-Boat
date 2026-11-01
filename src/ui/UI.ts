@@ -93,6 +93,29 @@ export interface HUDState {
   engagementMode: 'manual' | 'counter' | 'auto' | 'idle';
   target: TargetInfo | null;
   boss: BossInfo | null;
+  boostRatio: number;
+  boosting: boolean;
+  boostLocked: boolean;
+  salvoCooldown: number;
+  salvoMax: number;
+  combo: number;
+  comboMultiplier: number;
+  comboTimerRatio: number;
+  waveLabel: string;
+  waveSurge: boolean;
+  score: number;
+}
+
+export interface GameOverInfo {
+  level: number;
+  kills: number;
+  time: number;
+  maxHeat: number;
+  wave: number;
+  bestCombo: number;
+  score: number;
+  bestScore: number;
+  newRecord: boolean;
 }
 
 const number = (v: number): string => new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'zh-CN', { maximumFractionDigits: 0 }).format(Math.round(v));
@@ -103,6 +126,9 @@ export class UI {
   private cache = new Map<string, string>();
   private damageFlashTimer = 0;
   private abilityTimer = 0;
+  private waveBannerTimer = 0;
+  private lastCombo = 0;
+  private salvoWasCooling = false;
   private toastTimers = new Set<number>();
   private abandonConfirmArmed = false;
   private abandonConfirmTimer = 0;
@@ -530,6 +556,43 @@ export class UI {
       this.setStyle('target-bar', 'width', `${Math.max(0, (state.target.hp / state.target.maxHp) * 100)}%`);
     }
 
+    // Action dock: boost energy + salvo cooldown.
+    const dockBoost = this.el('dock-boost');
+    dockBoost.classList.toggle('active', state.boosting);
+    dockBoost.classList.toggle('depleted', state.boostLocked);
+    this.setStyle('boost-bar', 'width', `${Math.round(state.boostRatio * 1000) / 10}%`);
+    const dockSalvo = this.el('dock-salvo');
+    const cooling = state.salvoCooldown > 0;
+    dockSalvo.classList.toggle('cooling', cooling);
+    this.setText('salvo-state', cooling ? `${state.salvoCooldown.toFixed(1)}s` : '就绪');
+    this.setStyle('salvo-bar', 'width', `${Math.round((1 - state.salvoCooldown / state.salvoMax) * 1000) / 10}%`);
+    if (this.salvoWasCooling && !cooling) {
+      dockSalvo.classList.remove('ready-flash');
+      void dockSalvo.offsetWidth;
+      dockSalvo.classList.add('ready-flash');
+    }
+    this.salvoWasCooling = cooling;
+
+    // Combo meter.
+    const combo = this.el('combo-meter');
+    combo.classList.toggle('hidden', state.combo < 2);
+    if (state.combo >= 2) {
+      this.setText('combo-count', String(state.combo));
+      this.setText('combo-mult', `×${state.comboMultiplier.toFixed(2)}`);
+      this.setStyle('combo-timer-fill', 'width', `${Math.round(state.comboTimerRatio * 1000) / 10}%`);
+      if (state.combo > this.lastCombo) {
+        combo.classList.remove('bump');
+        void combo.offsetWidth;
+        combo.classList.add('bump');
+      }
+    }
+    this.lastCombo = state.combo;
+
+    // Wave + score row.
+    this.setText('wave-value', state.waveLabel);
+    this.el('wave-value').classList.toggle('surge', state.waveSurge);
+    this.setText('score-value', number(state.score));
+
     const bossPanel = this.el('boss-panel');
     bossPanel.classList.toggle('hidden', !state.boss);
     if (state.boss) {
@@ -753,8 +816,38 @@ export class UI {
     this.el('ability-banner').classList.add('hidden');
   }
 
-  showGameOver(level: number, kills: number, time: number, maxHeat: number): void {
+  /** Brief crosshair confirmation when a shell lands (red & bigger on kills). */
+  hitMarker(killed: boolean): void {
+    const marker = document.getElementById('ch-hit');
+    if (!marker) return;
+    marker.classList.remove('show', 'kill');
+    void marker.offsetWidth;
+    marker.classList.toggle('kill', killed);
+    marker.classList.add('show');
+  }
+
+  showWaveBanner(eyebrow: string, title: string, sub: string, kind: 'surge' | 'cleared' | 'combo', duration = 2600): void {
+    const banner = this.el('wave-banner');
+    banner.classList.remove('hidden', 'surge', 'cleared', 'combo');
+    // Restart the entrance animation.
+    void banner.offsetWidth;
+    banner.classList.add(kind);
+    this.el('wave-banner-eyebrow').textContent = eyebrow;
+    this.el('wave-banner-title').textContent = t(title);
+    this.el('wave-banner-sub').textContent = t(sub);
+    window.clearTimeout(this.waveBannerTimer);
+    this.waveBannerTimer = window.setTimeout(() => banner.classList.add('hidden'), duration);
+  }
+
+  hideWaveBanner(): void {
+    window.clearTimeout(this.waveBannerTimer);
+    this.el('wave-banner').classList.add('hidden');
+  }
+
+  showGameOver(info: GameOverInfo): void {
+    const { level, kills, time, maxHeat } = info;
     this.hideAllOverlays();
+    this.hideWaveBanner();
     this.el('screen-gameover').classList.remove('hidden');
     this.el('hud').classList.add('hidden');
     this.currentOverlay = 'none';
@@ -762,6 +855,11 @@ export class UI {
     this.setText('go-kills', String(kills));
     this.setText('go-time', formatTime(time));
     this.setText('go-heat', `${Math.round(maxHeat)}%`);
+    this.setText('go-wave', String(info.wave));
+    this.setText('go-combo', String(info.bestCombo));
+    this.setText('go-score', number(info.score));
+    this.setText('go-best', info.newRecord ? '★ 新纪录！' : `最高纪录 ${number(info.bestScore)}`);
+    this.el('go-best').classList.toggle('record', info.newRecord);
     const copy = this.el('gameover-copy');
     copy.textContent =
       kills >= 25

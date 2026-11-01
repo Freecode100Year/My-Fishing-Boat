@@ -130,6 +130,50 @@ export const COMBAT = {
   counterAttackDuration: 6.5,
 };
 
+/** Shift boost: short burst of speed that can be used to dodge and ram. */
+export const BOOST = {
+  maxEnergy: 100,
+  drainPerSecond: 34,
+  regenPerSecond: 20,
+  regenDelay: 0.8,
+  minToStart: 18,
+  speedMultiplier: 1.65,
+  accelMultiplier: 2.6,
+  fovKick: 9,
+  ramMinSpeed: 9,
+  ramBaseDamage: 70,
+  ramCooldown: 0.9,
+  ramKnockback: 9,
+  ramSelfDamage: 2,
+};
+
+/** Q salvo: a fan of shells fired toward the aim point. */
+export const SALVO = {
+  cooldown: 7,
+  shells: 7,
+  spreadRadians: 0.26,
+  damageMultiplier: 0.85,
+};
+
+/** Kill-chain combo. Each kill inside the window raises the XP / score multiplier. */
+export const COMBO = {
+  window: 4.5,
+  stepMultiplier: 0.25,
+  maxMultiplier: 3,
+  milestones: [3, 5, 8, 12, 20, 30] as readonly number[],
+};
+
+/** Tide waves: periodic aggressive surges with a reward when cleared. */
+export const WAVES = {
+  firstDelay: 40,
+  interval: 70,
+  baseCount: 2,
+  maxCount: 9,
+  bossEvery: 4,
+  clearXpPerWave: 35,
+  clearHealRatio: 0.15,
+};
+
 export const PROGRESSION = {
   baseXp: 72,
   xpGrowth: 1.34,
@@ -413,6 +457,10 @@ export interface SaveData {
   maxHeatReached: number;
   autoAttack?: boolean;
   autoCounter?: boolean;
+  score?: number;
+  wave?: number;
+  waveTimer?: number;
+  bestCombo?: number;
 }
 
 export const GAME_VERSION = 2;

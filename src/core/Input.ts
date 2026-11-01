@@ -27,7 +27,7 @@ export class Input {
       if (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLSelectElement) {
         return;
       }
-      if (['Tab', 'Space', 'KeyE', 'KeyR', 'KeyU', 'KeyF', 'KeyG', 'KeyH'].includes(e.code)) {
+      if (['Tab', 'Space', 'KeyE', 'KeyR', 'KeyU', 'KeyF', 'KeyG', 'KeyH', 'KeyQ', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
         e.preventDefault();
       }
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
@@ -105,6 +105,10 @@ export class Input {
 
   get fireHeld(): boolean {
     return this.leftDown || this.keys.has('Space');
+  }
+
+  get boostHeld(): boolean {
+    return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
   }
 
   get throttle(): number {

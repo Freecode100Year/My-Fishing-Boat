@@ -33,6 +33,10 @@ export class Enemy {
   shouldRemove = false;
   deathTimer = 0;
   byHeat = false;
+  /** Wave enemies always hunt the player instead of patrolling. */
+  aggressive = false;
+  /** Seconds until this enemy can be rammed again. */
+  ramCooldown = 0;
 
   private callbacks: EnemyCallbacks;
   private heading: number;
@@ -153,6 +157,7 @@ export class Enemy {
     this.stateTimer += dt;
     this.attackCooldown -= dt;
     this.hurtTimer = Math.max(0, this.hurtTimer - dt);
+    this.ramCooldown = Math.max(0, this.ramCooldown - dt);
 
     const player = this.callbacks.getPlayerPosition();
     const dx = player.x - this.group.position.x;
@@ -162,7 +167,7 @@ export class Enemy {
 
     if (this.hurtTimer > 0) {
       this.state = 'hurt';
-    } else if (dist < this.spec.detectRange) {
+    } else if (dist < this.spec.detectRange || this.aggressive) {
       if (dist <= this.spec.attackRange) {
         this.state = 'attack';
       } else {
@@ -349,6 +354,14 @@ export class Enemy {
       return { killed: true, dealt };
     }
     return { killed: false, dealt };
+  }
+
+  /** Shove the enemy horizontally (used by boat ramming). */
+  knockback(dirX: number, dirZ: number, distance: number): void {
+    if (this.dead) return;
+    this.group.position.x += dirX * distance;
+    this.group.position.z += dirZ * distance;
+    this.speed = 0;
   }
 
   killByHeat(): void {
